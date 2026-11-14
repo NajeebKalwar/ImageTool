@@ -29,6 +29,56 @@ function run(command, args, cwd, env) {
   return result.stdout;
 }
 
+function runVerifier(dist, cwd, env) {
+  return spawnSync(
+    process.execPath,
+    [
+      join(repositoryRoot, 'scripts', 'verify-seo.mjs'),
+      '--expect',
+      'production',
+      '--dist',
+      dist,
+      '--site',
+      site,
+    ],
+    {
+      cwd,
+      env,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
+}
+
+function readSitemapUrls(dist) {
+  const sitemapIndexPath = join(dist, 'sitemap-index.xml');
+  if (!existsSync(sitemapIndexPath)) {
+    throw new Error('The production sitemap index was not generated.');
+  }
+
+  const indexDocument = load(readFileSync(sitemapIndexPath, 'utf8'), { xml: true });
+  const sitemapLocations = indexDocument('sitemapindex > sitemap > loc')
+    .map((_, element) => indexDocument(element).text().trim())
+    .get();
+
+  const listed = new Set();
+  for (const location of sitemapLocations) {
+    const sitemapUrl = new URL(location);
+    const sitemapPath = join(dist, decodeURIComponent(sitemapUrl.pathname).replace(/^\/+/, ''));
+
+    if (!existsSync(sitemapPath)) {
+      throw new Error('Sitemap index references a missing file: ' + location);
+    }
+
+    const document = load(readFileSync(sitemapPath, 'utf8'), { xml: true });
+    document('urlset > url > loc').each((_, element) => {
+      listed.add(document(element).text().trim());
+    });
+  }
+
+  return listed;
+}
+
 try {
   if (!existsSync(nodeModulesSource)) {
     throw new Error('node_modules is missing. Install dependencies before running this test.');
@@ -62,7 +112,6 @@ try {
   if (!config.includes(emptyList)) {
     throw new Error('Could not find the expected empty NOINDEX_PATHS list in astro.config.mjs.');
   }
-  writeFileSync(configPath, config.replace(emptyList, withTestPage));
 
   const testPagePath = join(temporaryRoot, 'src', 'pages', 'seo-noindex-test.astro');
   mkdirSync(dirname(testPagePath), { recursive: true });
@@ -90,18 +139,16 @@ try {
     NODE_ENV: 'production',
     SITE_ENV: 'production',
   };
-
-  run(process.execPath, [astroCli, 'build'], temporaryRoot, buildEnv);
-
   const dist = join(temporaryRoot, 'dist');
   const testHtml = join(dist, 'seo-noindex-test.html');
-  const sitemapIndexPath = join(dist, 'sitemap-index.xml');
+
+  // First build deliberately omits the noindex route from NOINDEX_PATHS.
+  // The generated sitemap will contain it, and the verifier must reject that drift.
+  writeFileSync(configPath, config.replace(emptyList, emptyList));
+  run(process.execPath, [astroCli, 'build'], temporaryRoot, buildEnv);
 
   if (!existsSync(testHtml)) {
     throw new Error('The temporary noindex page was not generated.');
-  }
-  if (!existsSync(sitemapIndexPath)) {
-    throw new Error('The production sitemap index was not generated.');
   }
 
   const pageDocument = load(readFileSync(testHtml, 'utf8'));
@@ -111,48 +158,51 @@ try {
     throw new Error('Expected the temporary page to have noindex, follow; received: ' + robots);
   }
 
-  const indexDocument = load(readFileSync(sitemapIndexPath, 'utf8'), { xml: true });
-  const sitemapLocations = indexDocument('sitemapindex > sitemap > loc')
-    .map((_, element) => indexDocument(element).text().trim())
-    .get();
-
-  const listed = new Set();
-  for (const location of sitemapLocations) {
-    const sitemapUrl = new URL(location);
-    const sitemapPath = join(dist, decodeURIComponent(sitemapUrl.pathname).replace(/^\/+/, ''));
-
-    if (!existsSync(sitemapPath)) {
-      throw new Error('Sitemap index references a missing file: ' + location);
-    }
-
-    const document = load(readFileSync(sitemapPath, 'utf8'), { xml: true });
-    document('urlset > url > loc').each((_, element) => {
-      listed.add(document(element).text().trim());
-    });
+  const missingFilterList = readSitemapUrls(dist);
+  if (!missingFilterList.has(testUrl)) {
+    throw new Error('Expected the missing-filter test build to include the route in its sitemap.');
   }
 
-  if (listed.has(testUrl)) {
-    throw new Error('The temporary noindex page appeared in the sitemap: ' + testUrl);
+  const driftResult = runVerifier(dist, temporaryRoot, buildEnv);
+  const driftOutput = (driftResult.stdout || '') + (driftResult.stderr || '');
+
+  if (driftResult.status !== 1 || !driftOutput.includes(testUrl)) {
+    throw new Error(
+      'Expected the verifier to reject the sitemap/filter drift with exit code 1.\n' +
+      'Actual exit code: ' + driftResult.status + '\n' + driftOutput,
+    );
   }
 
-  run(
-    process.execPath,
-    [
-      join(repositoryRoot, 'scripts', 'verify-seo.mjs'),
-      '--expect',
-      'production',
-      '--dist',
-      dist,
-      '--site',
-      site,
-    ],
-    temporaryRoot,
-    buildEnv,
-  );
+  console.log('PASS: verifier rejects a noindex page missing from NOINDEX_PATHS.');
+
+  // Second build adds the noindex path to the explicit sitemap exclusion list.
+  writeFileSync(configPath, config.replace(emptyList, withTestPage));
+  rmSync(dist, { recursive: true, force: true });
+  run(process.execPath, [astroCli, 'build'], temporaryRoot, buildEnv);
+
+  const filteredDocument = load(readFileSync(testHtml, 'utf8'));
+  const filteredRobots = filteredDocument('meta[name="robots"]').attr('content')?.trim();
+
+  if (filteredRobots !== 'noindex, follow') {
+    throw new Error('Expected the filtered page to retain noindex, follow; received: ' + filteredRobots);
+  }
+
+  const filteredUrls = readSitemapUrls(dist);
+  if (filteredUrls.has(testUrl)) {
+    throw new Error('The temporary noindex page remained in the sitemap: ' + testUrl);
+  }
+
+  const verified = runVerifier(dist, temporaryRoot, buildEnv);
+  if (verified.status !== 0) {
+    throw new Error(
+      'Expected the verifier to accept the correctly filtered build.\n' +
+      (verified.stdout || '') + '\n' + (verified.stderr || ''),
+    );
+  }
 
   console.log('PASS: temporary noindex page renders noindex, follow.');
-  console.log('PASS: temporary noindex page is excluded by NOINDEX_PATHS.');
-  console.log('PASS: temporary noindex page is absent from every generated sitemap.');
+  console.log('PASS: adding the path to NOINDEX_PATHS removes it from all sitemap files.');
+  console.log('PASS: verifier accepts the correctly filtered production build.');
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
