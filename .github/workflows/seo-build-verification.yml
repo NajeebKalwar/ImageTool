@@ -26,8 +26,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check tracked files and ignore rules
+        run: |
+          echo "Tracked files:"
+          git ls-files
+          echo "Ignore rule matches:"
+          git check-ignore -v --no-index .env .env.production dist .astro
+
       - name: Verifier self-tests
         run: npm run test:verify
+
+      - name: Real sitemap noindex filter test
+        run: npm run test:sitemap-filter
 
       - name: Preview build
         shell: bash
