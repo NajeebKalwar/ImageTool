@@ -37,9 +37,9 @@ jobs:
           import { readFileSync } from 'node:fs';
 
           const html = readFileSync('dist/index.html', 'utf8');
-          const robots = html.match(/<meta\\s+name="robots"\\s+content="([^"]+)"/i)?.[1];
-          const title = html.match(/<title>(.*?)<\\/title>/i)?.[1];
-          const hasStylesheet = /<link\\b[^>]*rel="stylesheet"/i.test(html);
+          const robots = html.match(/<meta\s+name="robots"\s+content="([^"]+)"/i)?.[1];
+          const title = html.match(/<title>(.*?)<\/title>/i)?.[1];
+          const hasStylesheet = /<link\b[^>]*rel="stylesheet"/i.test(html);
 
           const checks = [
             ['robots directive', robots === process.env.EXPECTED_ROBOTS, robots],
@@ -66,9 +66,9 @@ jobs:
           import { readFileSync } from 'node:fs';
 
           const html = readFileSync('dist/index.html', 'utf8');
-          const robots = html.match(/<meta\\s+name="robots"\\s+content="([^"]+)"/i)?.[1];
-          const title = html.match(/<title>(.*?)<\\/title>/i)?.[1];
-          const hasStylesheet = /<link\\b[^>]*rel="stylesheet"/i.test(html);
+          const robots = html.match(/<meta\s+name="robots"\s+content="([^"]+)"/i)?.[1];
+          const title = html.match(/<title>(.*?)<\/title>/i)?.[1];
+          const hasStylesheet = /<link\b[^>]*rel="stylesheet"/i.test(html);
 
           const checks = [
             ['robots directive', robots === process.env.EXPECTED_ROBOTS, robots],
