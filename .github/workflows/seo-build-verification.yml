@@ -31,7 +31,7 @@ jobs:
           echo "Tracked files:"
           git ls-files
           echo "Ignore rule matches:"
-          git check-ignore -v --no-index .env .env.production dist .astro
+          git check-ignore -v --no-index .env .env.production dist/ .astro/
 
       - name: Verifier self-tests
         run: npm run test:verify
@@ -45,6 +45,10 @@ jobs:
           unset SITE_ENV
           npm run build
           npm run verify:preview
+          echo "Preview dist files:"
+          find dist -maxdepth 2 -type f -printf '%P\n' | sort
+          echo "Preview robots.txt:"
+          cat dist/robots.txt
 
       - name: Production build from shell environment
         env:
@@ -53,6 +57,14 @@ jobs:
           rm -rf dist
           npm run build
           npm run verify:production
+          echo "Production dist files:"
+          find dist -maxdepth 2 -type f -printf '%P\n' | sort
+          echo "Production robots.txt:"
+          cat dist/robots.txt
+          echo "Production sitemap index:"
+          cat dist/sitemap-index.xml
+          echo "Production sitemap page list:"
+          cat dist/sitemap-0.xml
 
       - name: Production environment file alignment test
         shell: bash
