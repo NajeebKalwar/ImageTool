@@ -8,14 +8,14 @@ ImageTool is a browser-based image toolkit. The intended default is that image p
 
 ### P-01 — Image pixels stay on the visitor's device
 
-Source image bytes, decoded pixel buffers, intermediate image data, and processed image bytes must not be uploaded by normal image-tool workflows.
+Source image bytes, decoded pixel buffers, intermediate image data, and processed image bytes must never be uploaded or transmitted off-device by any image-tool workflow.
 
 - **What could break this:** an upload endpoint, third-party script, analytics/error-reporting SDK, remote image-processing library, or a future cloud-save/share feature.
 - **How to detect it:** inspect browser DevTools Network requests while using every tool; use a test image with a recognizable marker; confirm no request body, URL, beacon, or telemetry payload contains image data. Add automated browser tests that fail on unexpected upload requests.
 
 ### P-02 — Local inference is the default
 
-AI models execute in the browser through a browser-compatible runtime, preferably inside a Web Worker. Model files and runtime assets may be downloaded, but image pixels must not be sent with those downloads.
+AI models execute in the browser through a browser-compatible runtime, preferably inside a Web Worker. Model files and runtime assets may be downloaded, but user image pixels must not be sent with those downloads.
 
 - **What could break this:** replacing local inference with a hosted inference API or sending image data to a remote model endpoint.
 - **How to detect it:** review worker and runtime code; inspect network destinations and request bodies during inference; maintain an allowlist of expected model/runtime asset hosts.
