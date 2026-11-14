@@ -9,6 +9,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   site: 'https://imagetool.example',
   trailingSlash: 'never',
+  build: {
+    format: 'file',
+  },
 
   integrations: [react()],
 
