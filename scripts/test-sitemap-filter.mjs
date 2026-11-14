@@ -8,7 +8,7 @@ const repositoryRoot = process.cwd();
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'imagetool-sitemap-filter-'));
 const nodeModulesSource = join(repositoryRoot, 'node_modules');
 const site = 'https://imagetool.example';
-const testPath = '/__seo-noindex-test';
+const testPath = '/seo-noindex-test';
 const testUrl = new URL(testPath, site).href;
 
 function run(command, args, cwd, env) {
@@ -57,14 +57,14 @@ try {
   const configPath = join(temporaryRoot, 'astro.config.mjs');
   const config = readFileSync(configPath, 'utf8');
   const emptyList = "const NOINDEX_PATHS = new Set([\n  // '/example-private-page',\n]);";
-  const withTestPage = "const NOINDEX_PATHS = new Set([\n  '/__seo-noindex-test',\n]);";
+  const withTestPage = "const NOINDEX_PATHS = new Set([\n  '/seo-noindex-test',\n]);";
 
   if (!config.includes(emptyList)) {
     throw new Error('Could not find the expected empty NOINDEX_PATHS list in astro.config.mjs.');
   }
   writeFileSync(configPath, config.replace(emptyList, withTestPage));
 
-  const testPagePath = join(temporaryRoot, 'src', 'pages', '__seo-noindex-test.astro');
+  const testPagePath = join(temporaryRoot, 'src', 'pages', 'seo-noindex-test.astro');
   mkdirSync(dirname(testPagePath), { recursive: true });
   writeFileSync(
     testPagePath,
@@ -74,7 +74,7 @@ try {
       "<Layout\n" +
       '  title="SEO Noindex Filter Test"\n' +
       '  description="Temporary test page used to verify sitemap exclusion."\n' +
-      '  path="/__seo-noindex-test"\n' +
+      '  path="/seo-noindex-test"\n' +
       "  noindex={true}\n" +
       ">\n" +
       "  <main><h1>SEO Noindex Filter Test</h1></main>\n" +
@@ -94,7 +94,7 @@ try {
   run(process.execPath, [astroCli, 'build'], temporaryRoot, buildEnv);
 
   const dist = join(temporaryRoot, 'dist');
-  const testHtml = join(dist, '__seo-noindex-test.html');
+  const testHtml = join(dist, 'seo-noindex-test.html');
   const sitemapIndexPath = join(dist, 'sitemap-index.xml');
 
   if (!existsSync(testHtml)) {
