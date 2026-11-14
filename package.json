@@ -9,10 +9,14 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "verify:preview": "node scripts/verify-seo.mjs --expect preview",
+    "verify:production": "node scripts/verify-seo.mjs --expect production",
+    "test:verify": "node --test scripts/verify-seo.test.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^7.1.9",
+    "@astrojs/sitemap": "^3.7.4",
     "@casoon/trackr": "^0.3.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/react": "^19.3.0",
@@ -24,5 +28,8 @@
     "react-dom": "^19.3.1",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.5"
+  },
+  "devDependencies": {
+    "cheerio": "^1.2.0"
   }
 }
