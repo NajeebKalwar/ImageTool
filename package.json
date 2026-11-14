@@ -12,7 +12,8 @@
     "astro": "astro",
     "verify:preview": "node scripts/verify-seo.mjs --expect preview",
     "verify:production": "node scripts/verify-seo.mjs --expect production",
-    "test:verify": "node --test scripts/verify-seo.test.mjs"
+    "test:verify": "node --test scripts/verify-seo.test.mjs",
+    "test:sitemap-filter": "node scripts/test-sitemap-filter.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^7.1.9",
