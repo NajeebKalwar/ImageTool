@@ -4,8 +4,12 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 
-// https://astro.build/config
+// The placeholder origin is intentionally non-production.
+// Replace it with the owned production domain before launch.
 export default defineConfig({
+  site: 'https://imagetool.example',
+  trailingSlash: 'never',
+
   integrations: [react()],
 
   vite: {
