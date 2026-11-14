@@ -36,10 +36,24 @@ jobs:
           npm run build
           npm run verify:preview
 
-      - name: Production build
+      - name: Production build from shell environment
         env:
           SITE_ENV: production
         run: |
           rm -rf dist
+          npm run build
+          npm run verify:production
+
+      - name: Production environment file alignment test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            rm -f .env
+          }
+          trap cleanup EXIT
+          rm -rf dist
+          printf 'SITE_ENV=production\n' > .env
+          unset SITE_ENV
           npm run build
           npm run verify:production
