@@ -71,3 +71,25 @@ This file is the source of truth for project-level decisions. Add a dated entry 
 - **Decision:** Generate the sitemap only for production builds. Include only canonical, indexable production URLs. Exclude every page marked `noindex`, whether its robots directive is `noindex, follow` or `noindex, nofollow`.
 - **Verification:** Check that every sitemap URL resolves to a generated page with a canonical URL and an indexable robots directive, and that no `noindex` page appears in the sitemap.
 - **Risk:** Adding a page to the sitemap while excluding it from indexing creates conflicting signals. Keep the sitemap filter aligned with the layout's robots policy.
+
+
+## ADR-009: Sitemap and robots.txt
+
+- **Status:** Accepted.
+- **Problem:** Crawlers need a list of indexable URLs and crawl rules, and both must agree with each page's robots directive.
+- **Principle:** One SITE_ENV value decides production behavior everywhere, and the sitemap lists only canonical, indexable production URLs.
+- **Decision:**
+  - astro.config.mjs loads SITE_ENV with Vite's loadEnv(mode, process.cwd(), ''). The same mode is used by Astro's page environment. Shell variables take precedence over environment files. A .env or mode-specific file may define the flag, but never put SITE_ENV=production in a local file used for preview or development.
+  - @astrojs/sitemap is added only when SITE_ENV=production. Pages that set noindex: true must also be listed in NOINDEX_PATHS in astro.config.mjs, because the integration filters by URL and cannot read Astro component props.
+  - robots.txt is a generated route that builds the absolute sitemap URL from Astro.site. Production allows all crawlers and lists the sitemap index. Non-production allows crawling and lists no sitemap, so crawlers can read the noindex, nofollow page directive.
+  - AI crawlers are not named separately; they are covered by User-agent: *. Robots rules are advisory, not access control.
+  - Do not add a link rel=sitemap element to the document head for now; robots.txt is the single discovery location.
+- **Options rejected:** Disallow: / on previews (a blocked page cannot show its own noindex; use host-level authentication for private previews); a static robots.txt (duplicates the site origin); a shared page registry (deferred to the future content model).
+- **Risk:** NOINDEX_PATHS can drift from page props. The verifier compares actual robots metadata with sitemap membership and catches this drift. A local environment file containing SITE_ENV=production makes that local build production-indexable; keep preview/development files free of that value.
+
+## ADR-010: SEO verifier script
+
+- **Status:** Accepted.
+- **Decision:** scripts/verify-seo.mjs checks the built dist/ folder. The expected mode is passed explicitly (--expect production|preview) and is never read from SITE_ENV, so the checker does not trust the flag it verifies. It uses Cheerio to parse HTML and sitemap XML. The site origin is read from astro.config.mjs. The companion Node test suite creates temporary good and deliberately broken build folders to prove the verifier fails when a rule is violated.
+- **Parser choice:** Cheerio provides standards-oriented HTML parsing and XML parsing through one dependency. It is used only by development verification scripts, not shipped to visitors. This avoids maintaining separate HTML and XML parsers.
+- **Risk:** The brand name is repeated in the verifier and src/site.config.ts; update both if the brand changes. The title rule deliberately requires the brand exactly once at the end and may need revisiting for special page types.
