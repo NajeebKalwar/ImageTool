@@ -1,0 +1,84 @@
+name: SEO build verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seo-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test A — build without SITE_ENV
+        env:
+          EXPECTED_ROBOTS: noindex, nofollow
+        shell: bash
+        run: |
+          unset SITE_ENV
+          npm run build
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const html = readFileSync('dist/index.html', 'utf8');
+          const robots = html.match(/<meta\\s+name="robots"\\s+content="([^"]+)"/i)?.[1];
+          const title = html.match(/<title>(.*?)<\\/title>/i)?.[1];
+          const hasStylesheet = /<link\\b[^>]*rel="stylesheet"/i.test(html);
+
+          const checks = [
+            ['robots directive', robots === process.env.EXPECTED_ROBOTS, robots],
+            ['page title', title === 'Free Online Image Tools | ImageTool', title],
+            ['global stylesheet link', hasStylesheet, hasStylesheet],
+          ];
+
+          for (const [name, passed, actual] of checks) {
+            console.log(`${passed ? 'PASS' : 'FAIL'}: ${name} (${actual ?? 'not found'})`);
+          }
+
+          if (checks.some(([, passed]) => !passed)) process.exit(1);
+          NODE
+
+      - name: Test B — production build
+        env:
+          SITE_ENV: production
+          EXPECTED_ROBOTS: index, follow
+        shell: bash
+        run: |
+          rm -rf dist
+          npm run build
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const html = readFileSync('dist/index.html', 'utf8');
+          const robots = html.match(/<meta\\s+name="robots"\\s+content="([^"]+)"/i)?.[1];
+          const title = html.match(/<title>(.*?)<\\/title>/i)?.[1];
+          const hasStylesheet = /<link\\b[^>]*rel="stylesheet"/i.test(html);
+
+          const checks = [
+            ['robots directive', robots === process.env.EXPECTED_ROBOTS, robots],
+            ['page title', title === 'Free Online Image Tools | ImageTool', title],
+            ['global stylesheet link', hasStylesheet, hasStylesheet],
+          ];
+
+          for (const [name, passed, actual] of checks) {
+            console.log(`${passed ? 'PASS' : 'FAIL'}: ${name} (${actual ?? 'not found'})`);
+          }
+
+          if (checks.some(([, passed]) => !passed)) process.exit(1);
+          NODE
