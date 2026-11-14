@@ -50,8 +50,24 @@ This file is the source of truth for project-level decisions. Add a dated entry 
 ## ADR-006: Robots indexing policy
 
 - **Status:** Accepted.
-- **Problem:** Preview and development builds must not accidentally become indexable, while selected production pages may need to be excluded.
-- **Principle:** The deployment environment provides the mandatory safety boundary; a page may make indexing stricter but cannot make a non-production build indexable.
-- **Decision:** The SEO layout treats the build as production only when the server-side `SITE_ENV` variable equals `production`. If it is unset or has any other value, emit `noindex, nofollow`. An optional page-level `noindex: true` prop can also exclude a page in production. Production deployment must explicitly set `SITE_ENV=production`; preview deployments must not set it to production.
-- **Options rejected:** Relying only on a page author to remember `noindex`; allowing a page prop to override a preview build's noindex protection.
-- **Risk:** A deployment configured with `SITE_ENV=production` on a preview URL will be indexable. Configure this variable per deployment environment and verify the generated HTML before publishing.
+- **Problem:** Development and preview builds must not become indexable accidentally, while selected production pages may need to be excluded from search indexing.
+- **Principle:** The deployment environment provides the mandatory safety boundary. A page-level setting may make indexing stricter, but it cannot make a non-production build indexable.
+- **Decision:** The SEO layout treats a build as production only when the server-side `SITE_ENV` variable equals `production`. In development or preview builds, emit `noindex, nofollow`. In production, emit `index, follow` by default. When a production page sets `noindex: true`, emit `noindex, follow`. Production deployment must explicitly set `SITE_ENV=production`; preview deployments must not set it to `production`.
+- **Options rejected:** Relying only on page authors to remember `noindex`; allowing a page prop to override a non-production build's noindex protection; using `noindex, nofollow` for every excluded production page.
+- **Risk:** A deployment configured with `SITE_ENV=production` on a preview URL will be indexable. Configure the variable per deployment environment and verify the generated HTML before publishing. Check current search-engine guidance before relying on long-term link-following behavior from pages kept `noindex`.
+
+## ADR-007: Page title suffix
+
+- **Status:** Accepted.
+- **Problem:** Repeating the brand name in every page title creates inconsistent titles and makes page authors responsible for shared metadata.
+- **Decision:** Page authors provide a page-specific title without the brand. The SEO layout trims the value and appends ` | ImageTool`. The layout rejects an empty or whitespace-only title and description.
+- **Options rejected:** Requiring every page to append the brand manually; using different title separators across pages.
+- **Risk:** Page titles must not include the brand suffix themselves, or the brand will appear twice.
+
+## ADR-008: Sitemap inclusion policy
+
+- **Status:** Accepted for Phase 1.4 implementation.
+- **Problem:** The sitemap must agree with each page's canonical URL and indexing directive.
+- **Decision:** Generate the sitemap only for production builds. Include only canonical, indexable production URLs. Exclude every page marked `noindex`, whether its robots directive is `noindex, follow` or `noindex, nofollow`.
+- **Verification:** Check that every sitemap URL resolves to a generated page with a canonical URL and an indexable robots directive, and that no `noindex` page appears in the sitemap.
+- **Risk:** Adding a page to the sitemap while excluding it from indexing creates conflicting signals. Keep the sitemap filter aligned with the layout's robots policy.
