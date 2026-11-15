@@ -11,14 +11,15 @@ permissions:
   contents: read
 
 jobs:
-  seo-build:
+  seo:
+    name: SEO and build verification
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -26,56 +27,55 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check tracked files and ignore rules
+      - name: Repository hygiene
+        shell: bash
         run: |
+          set -euo pipefail
           echo "Tracked files:"
           git ls-files
-          echo "Ignore rule matches:"
-          git check-ignore -v --no-index .env .env.production dist/ .astro/
+          if git ls-files | grep -E '(^|/)\\.env($|\\.)' | grep -v '\\.env\\.example$'; then
+            echo "::error::An environment file is tracked by git"
+            exit 1
+          fi
+          for path in .env .env.production dist/ .astro/ node_modules/; do
+            git check-ignore -q "$path" || { echo "::error::$path is not ignored"; exit 1; }
+          done
 
       - name: Verifier self-tests
         run: npm run test:verify
 
-      - name: Real sitemap noindex filter test
-        run: npm run test:sitemap-filter
+      - name: Real-build integration tests
+        run: npm run test:integration
 
-      - name: Preview build
+      - name: Preview build (SITE_ENV unset)
         shell: bash
         run: |
           unset SITE_ENV
+          rm -rf dist
           npm run build
           npm run verify:preview
-          echo "Preview dist files:"
-          find dist -maxdepth 2 -type f -printf '%P\n' | sort
-          echo "Preview robots.txt:"
-          cat dist/robots.txt
 
-      - name: Production build from shell environment
+      - name: Production build (SITE_ENV=production)
+        shell: bash
         env:
           SITE_ENV: production
         run: |
           rm -rf dist
           npm run build
           npm run verify:production
-          echo "Production dist files:"
-          find dist -maxdepth 2 -type f -printf '%P\n' | sort
-          echo "Production robots.txt:"
-          cat dist/robots.txt
-          echo "Production sitemap index:"
-          cat dist/sitemap-index.xml
-          echo "Production sitemap page list:"
-          cat dist/sitemap-0.xml
 
-      - name: Production environment file alignment test
-        shell: bash
-        run: |
-          set -euo pipefail
-          cleanup() {
-            rm -f .env
-          }
-          trap cleanup EXIT
-          rm -rf dist
-          printf 'SITE_ENV=production\n' > .env
-          unset SITE_ENV
-          npm run build
-          npm run verify:production
+  secret-scan:
+    name: Full Git history secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full repository history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Scan Git history with Gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_VERSION: "8.30.1"
