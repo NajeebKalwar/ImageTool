@@ -87,9 +87,17 @@ This file is the source of truth for project-level decisions. Add a dated entry 
 - **Options rejected:** Disallow: / on previews (a blocked page cannot show its own noindex; use host-level authentication for private previews); a static robots.txt (duplicates the site origin); a shared page registry (deferred to the future content model).
 - **Risk:** NOINDEX_PATHS can drift from page props. The verifier compares actual robots metadata with sitemap membership and catches this drift. A local environment file containing SITE_ENV=production makes that local build production-indexable; keep preview/development files free of that value.
 
-## ADR-010: SEO verifier script
+## ADR-010: SEO verifier and CI
 
 - **Status:** Accepted.
-- **Decision:** scripts/verify-seo.mjs checks the built dist/ folder. The expected mode is passed explicitly (--expect production|preview) and is never read from SITE_ENV, so the checker does not trust the flag it verifies. It uses Cheerio to parse HTML and sitemap XML. The site origin is read from astro.config.mjs. The companion Node test suite creates temporary good and deliberately broken build folders to prove the verifier fails when a rule is violated.
-- **Parser choice:** Cheerio provides standards-oriented HTML parsing and XML parsing through one dependency. It is used only by development verification scripts, not shipped to visitors. This avoids maintaining separate HTML and XML parsers.
-- **Risk:** The brand name is repeated in the verifier and src/site.config.ts; update both if the brand changes. The title rule deliberately requires the brand exactly once at the end and may need revisiting for special page types.
+- **Decision:** scripts/verify-seo.mjs checks the built dist/ folder. The expected mode is passed explicitly (--expect production|preview) and is never read from SITE_ENV, so the checker does not trust the flag it verifies. It parses HTML and sitemap XML with Cheerio. The site origin is read from astro.config.mjs; the brand name is read from src/site.config.ts (or may be overridden with --brand for isolated tests).
+- **Tests:** scripts/verify-seo.test.mjs uses Node's test runner to prove the verifier accepts valid builds and rejects deliberate defects. scripts/test-build-integration.mjs runs real Astro builds to verify noindex/sitemap alignment and SITE_ENV loaded from a .env file.
+- **CI:** GitHub Actions runs the verifier tests, real-build integration tests, preview and production builds, and repository hygiene checks on pushes and pull requests to main.
+- **Risk:** The verifier checks generated structure and metadata, not the quality, usefulness, accessibility, or ranking potential of page content.
+
+## ADR-011: Full-history secret scanning
+
+- **Status:** Accepted.
+- **Problem:** Ignore rules prevent future local environment files from being added, but they do not detect secrets that may already exist in earlier commits.
+- **Decision:** A separate CI job uses Gitleaks Action and checks out the repository with fetch-depth: 0, so the scan has the full Git history available. It runs on pushes and pull requests to main. Confirmed exposed credentials must be revoked or rotated; deleting a secret from the latest file alone does not make an earlier commit safe.
+- **Risk:** Automated secret scanners can produce false positives and cannot guarantee detection of every secret format. Review findings rather than silently allowlisting them.

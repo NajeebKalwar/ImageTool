@@ -19,9 +19,11 @@ function page({
   includeStyles = true,
   robotsContent = true,
   canonicalHref = true,
+  lang = 'en',
+  viewport = true,
 } = {}) {
-  return '<!doctype html><html lang="en"><head>' +
-    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+  return '<!doctype html><html' + (lang ? ' lang="' + lang + '"' : '') + '><head>' +
+    '<meta charset="UTF-8">' + (viewport ? '<meta name="viewport" content="width=device-width, initial-scale=1.0">' : '') +
     (title === null ? '' : '<title>' + title + '</title>' + (extraTitle ? '<title>Second title | ImageTool</title>' : '')) +
     (description === null ? '' : '<meta name="description" content="' + description + '">') +
     (canonical === null ? '' : '<link rel="canonical" ' + (canonicalHref ? 'href="' + canonical + '"' : '') + '>') +
@@ -218,3 +220,18 @@ test('missing external and inline styles fails', () =>
     goodProduction({ 'about.html': aboutPage({ includeStyles: false }) }),
     'production',
   ));
+
+test('canonical on the wrong origin fails', () =>
+  fails(goodProduction({ 'about.html': aboutPage({ canonical: 'https://other.example/about' }) }), 'production'));
+
+test('canonical with trailing slash fails', () =>
+  fails(goodProduction({ 'about.html': aboutPage({ canonical: SITE + '/about/' }) }), 'production'));
+
+test('missing html lang fails', () =>
+  fails(goodProduction({ 'about.html': aboutPage({ lang: '' }) }), 'production'));
+
+test('missing viewport fails', () =>
+  fails(goodProduction({ 'about.html': aboutPage({ viewport: false }) }), 'production'));
+
+test('missing robots.txt fails', () =>
+  fails(goodProduction({ 'robots.txt': null }), 'production'));

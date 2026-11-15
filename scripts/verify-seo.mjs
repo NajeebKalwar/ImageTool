@@ -6,8 +6,6 @@ import { join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { load } from 'cheerio';
 
-const BRAND = 'ImageTool';
-
 function parseArgs(argv) {
   const options = { dist: 'dist' };
 
@@ -22,6 +20,7 @@ function parseArgs(argv) {
     if (key === '--expect') options.expect = value;
     else if (key === '--dist') options.dist = value;
     else if (key === '--site') options.site = value;
+    else if (key === '--brand') options.brand = value;
     else throw new Error('Unknown argument: ' + key);
 
     index += 1;
@@ -46,6 +45,14 @@ async function resolveSite(cliSite) {
   }
 
   return new URL(site).href;
+}
+
+function resolveBrand(cliBrand) {
+  if (cliBrand) return cliBrand;
+  const source = readFileSync(resolve('src/site.config.ts'), 'utf8');
+  const match = source.match(/^\s*name:\s*['"]([^'"]+)['"]/m);
+  if (!match) throw new Error("Could not read the name property from src/site.config.ts");
+  return match[1];
 }
 
 function listFiles(directory) {
@@ -98,6 +105,7 @@ async function main() {
   const dist = resolve(options.dist);
   const site = await resolveSite(options.site);
   const siteUrl = new URL(site);
+  const brand = resolveBrand(options.brand);
   const errors = [];
   const fail = (where, message) => errors.push(where + ': ' + message);
 
@@ -125,13 +133,13 @@ async function main() {
       if (!title) {
         fail(where, 'title is empty');
       } else {
-        const brandCount = title.split(BRAND).length - 1;
+        const brandCount = title.split(brand).length - 1;
 
-        if (!title.endsWith(' | ' + BRAND)) {
-          fail(where, 'title must end with " | ' + BRAND + '"');
+        if (!title.endsWith(' | ' + brand)) {
+          fail(where, 'title must end with " | ' + brand + '"');
         }
         if (brandCount !== 1) {
-          fail(where, 'brand "' + BRAND + '" must appear exactly once in the title; found ' + brandCount);
+          fail(where, 'brand "' + brand + '" must appear exactly once in the title; found ' + brandCount);
         }
 
         addToMap(titles, title, where);

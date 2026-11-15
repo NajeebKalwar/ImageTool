@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { load } from 'cheerio';
 
 const repositoryRoot = process.cwd();
-const temporaryRoot = mkdtempSync(join(tmpdir(), 'imagetool-sitemap-filter-'));
+const temporaryRoot = mkdtempSync(join(tmpdir(), 'imagetool-build-integration-'));
 const nodeModulesSource = join(repositoryRoot, 'node_modules');
 const site = 'https://imagetool.example';
 const testPath = '/seo-noindex-test';
@@ -203,6 +203,32 @@ try {
   console.log('PASS: temporary noindex page renders noindex, follow.');
   console.log('PASS: adding the path to NOINDEX_PATHS removes it from all sitemap files.');
   console.log('PASS: verifier accepts the correctly filtered production build.');
+
+  // Confirm SITE_ENV is also read from .env when the shell variable is absent.
+  writeFileSync(join(temporaryRoot, '.env'), 'SITE_ENV=production\n');
+  const envFileBuildEnv = { ...process.env, NODE_ENV: 'production' };
+  delete envFileBuildEnv.SITE_ENV;
+  rmSync(dist, { recursive: true, force: true });
+  run(process.execPath, [astroCli, 'build'], temporaryRoot, envFileBuildEnv);
+
+  const envFileResult = runVerifier(dist, temporaryRoot, envFileBuildEnv);
+  if (envFileResult.status !== 0) {
+    throw new Error(
+      'Expected SITE_ENV from .env to produce a valid production build.\n' +
+      (envFileResult.stdout || '') + '\n' + (envFileResult.stderr || ''),
+    );
+  }
+
+  const envHome = load(readFileSync(join(dist, 'index.html'), 'utf8'));
+  const envRobots = envHome('meta[name="robots"]').attr('content')?.trim();
+  if (envRobots !== 'index, follow') {
+    throw new Error('Expected .env production mode to emit index, follow; received: ' + envRobots);
+  }
+  if (!existsSync(join(dist, 'sitemap-index.xml'))) {
+    throw new Error('Expected .env production mode to generate sitemap-index.xml.');
+  }
+  console.log('PASS: SITE_ENV from .env produces production robots metadata and a sitemap.');
+
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }

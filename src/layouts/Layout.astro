@@ -33,6 +33,10 @@ if (!path.startsWith('/') || path.startsWith('//') || path.includes('?') || path
 // The layout owns the site-name suffix. Page authors provide only the page title.
 const fullTitle = `${pageTitle} | ${siteConfig.name}`;
 
+if (!Astro.site) {
+  throw new Error('Set site in astro.config.mjs so canonical URLs can be absolute.');
+}
+
 // Fail closed: only a deployment explicitly marked as production can be indexed.
 // Set SITE_ENV=production in the production build environment.
 const isProduction = import.meta.env.SITE_ENV === 'production';
