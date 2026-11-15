@@ -205,7 +205,7 @@ try {
   console.log('PASS: verifier accepts the correctly filtered production build.');
 
   // Confirm SITE_ENV is also read from .env when the shell variable is absent.
-  writeFileSync(join(temporaryRoot, '.env'), 'SITE_ENV=production\\n');
+  writeFileSync(join(temporaryRoot, '.env'), 'SITE_ENV=production\n');
   const envFileBuildEnv = { ...process.env, NODE_ENV: 'production' };
   delete envFileBuildEnv.SITE_ENV;
   rmSync(dist, { recursive: true, force: true });
@@ -214,8 +214,8 @@ try {
   const envFileResult = runVerifier(dist, temporaryRoot, envFileBuildEnv);
   if (envFileResult.status !== 0) {
     throw new Error(
-      'Expected SITE_ENV from .env to produce a valid production build.\\n' +
-      (envFileResult.stdout || '') + '\\n' + (envFileResult.stderr || ''),
+      'Expected SITE_ENV from .env to produce a valid production build.\n' +
+      (envFileResult.stdout || '') + '\n' + (envFileResult.stderr || ''),
     );
   }
 
