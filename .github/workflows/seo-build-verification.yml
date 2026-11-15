@@ -33,7 +33,7 @@ jobs:
           set -euo pipefail
           echo "Tracked files:"
           git ls-files
-          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vF '.env.example'; then
             echo "::error::An environment file is tracked by git"
             exit 1
           fi
