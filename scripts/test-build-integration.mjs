@@ -106,11 +106,23 @@ try {
 
   const configPath = join(temporaryRoot, 'astro.config.mjs');
   const config = readFileSync(configPath, 'utf8');
-  const emptyList = "const NOINDEX_PATHS = new Set([\n  // '/example-private-page',\n]);";
-  const withTestPage = "const NOINDEX_PATHS = new Set([\n  '/seo-noindex-test',\n]);";
+  // const emptyList = "const NOINDEX_PATHS = new Set([\n  // '/example-private-page',\n]);";
+  // const withTestPage = "const NOINDEX_PATHS = new Set([\n  '/seo-noindex-test',\n]);";
 
-  if (!config.includes(emptyList)) {
-    throw new Error('Could not find the expected empty NOINDEX_PATHS list in astro.config.mjs.');
+  // if (!config.includes(emptyList)) {
+  //   throw new Error('Could not find the expected empty NOINDEX_PATHS list in astro.config.mjs.');
+  // }
+  const emptyListPattern =
+    /const NOINDEX_PATHS\s*=\s*new Set\(\[\s*\/\/\s*'\/example-private-page',?\s*\]\);/;
+
+  const withTestPage = `const NOINDEX_PATHS = new Set([
+  '/seo-noindex-test',
+  ]);`;
+
+  if (!emptyListPattern.test(config)) {
+    throw new Error(
+      'Could not find the expected empty NOINDEX_PATHS list in astro.config.mjs.'
+    );
   }
 
   const testPagePath = join(temporaryRoot, 'src', 'pages', 'seo-noindex-test.astro');
@@ -118,16 +130,16 @@ try {
   writeFileSync(
     testPagePath,
     "---\n" +
-      "import Layout from '../layouts/Layout.astro';\n" +
-      "---\n" +
-      "<Layout\n" +
-      '  title="SEO Noindex Filter Test"\n' +
-      '  description="Temporary test page used to verify sitemap exclusion."\n' +
-      '  path="/seo-noindex-test"\n' +
-      "  noindex={true}\n" +
-      ">\n" +
-      "  <main><h1>SEO Noindex Filter Test</h1></main>\n" +
-      "</Layout>\n",
+    "import Layout from '../layouts/Layout.astro';\n" +
+    "---\n" +
+    "<Layout\n" +
+    '  title="SEO Noindex Filter Test"\n' +
+    '  description="Temporary test page used to verify sitemap exclusion."\n' +
+    '  path="/seo-noindex-test"\n' +
+    "  noindex={true}\n" +
+    ">\n" +
+    "  <main><h1>SEO Noindex Filter Test</h1></main>\n" +
+    "</Layout>\n",
   );
 
   const astroPackage = JSON.parse(
@@ -144,7 +156,8 @@ try {
 
   // First build deliberately omits the noindex route from NOINDEX_PATHS.
   // The generated sitemap will contain it, and the verifier must reject that drift.
-  writeFileSync(configPath, config.replace(emptyList, emptyList));
+  // writeFileSync(configPath, config.replace(emptyList, emptyList));
+  writeFileSync(configPath, config);
   run(process.execPath, [astroCli, 'build'], temporaryRoot, buildEnv);
 
   if (!existsSync(testHtml)) {
@@ -176,7 +189,11 @@ try {
   console.log('PASS: verifier rejects a noindex page missing from NOINDEX_PATHS.');
 
   // Second build adds the noindex path to the explicit sitemap exclusion list.
-  writeFileSync(configPath, config.replace(emptyList, withTestPage));
+  // writeFileSync(configPath, config.replace(emptyList, withTestPage));
+  writeFileSync(
+    configPath,
+    config.replace(emptyListPattern, withTestPage)
+  );
   rmSync(dist, { recursive: true, force: true });
   run(process.execPath, [astroCli, 'build'], temporaryRoot, buildEnv);
 

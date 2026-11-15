@@ -13,7 +13,9 @@
     "verify:preview": "node scripts/verify-seo.mjs --expect preview",
     "verify:production": "node scripts/verify-seo.mjs --expect production",
     "test:verify": "node --test scripts/verify-seo.test.mjs",
-    "test:integration": "node scripts/test-build-integration.mjs"
+    "test:integration": "node scripts/test-build-integration.mjs",
+    "check": "astro check",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@astrojs/react": "^7.1.9",
@@ -30,6 +32,9 @@
     "tailwindcss": "^4.3.5"
   },
   "devDependencies": {
-    "cheerio": "^1.2.0"
+    "@astrojs/check": "^0.9.12",
+    "cheerio": "^1.2.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0"
   }
 }
