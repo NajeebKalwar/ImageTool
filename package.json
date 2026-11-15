@@ -13,12 +13,11 @@
     "verify:preview": "node scripts/verify-seo.mjs --expect preview",
     "verify:production": "node scripts/verify-seo.mjs --expect production",
     "test:verify": "node --test scripts/verify-seo.test.mjs",
-    "test:sitemap-filter": "node scripts/test-sitemap-filter.mjs"
+    "test:integration": "node scripts/test-build-integration.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^7.1.9",
     "@astrojs/sitemap": "^3.7.4",
-    "@casoon/trackr": "^0.3.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
