@@ -215,3 +215,15 @@ This file is the source of truth for project-level decisions. Add a dated entry 
   - **Categorized Discovery (`src/pages/index.astro`):** The homepage cleanly separates tools into "On-Device AI Neural Tools (WebGPU / WASM)" and "Client-Side Optimization Tools (Web Worker)".
 - **Options rejected:** Creating completely separate worker implementations for each tool (violates DRY; core canvas/AI worker handles all operations); fabricating artificial benchmarks (all benchmarks reflect real on-device measurement vs typical network round-trip overhead).
 - **Risk:** Maintaining 5 tool pages requires ensuring content does not drift. Handled by the single-source `ToolDefinition` schema, where `json-ld.ts`, `verify-seo.mjs`, and `verify-privacy.mjs` validate all 5 pages on every build.
+
+## ADR-019: Trust Architecture, Compliance Pages, and Production Launch Readiness
+
+- **Status:** Accepted (Phase 9).
+- **Problem:** Production launch requires comprehensive user trust disclosures, transparent legal terms, and site-wide navigation connecting all privacy, terms, about, and support resources.
+- **Principle:** Transparency by default. The local, privacy-first processing architecture must be clearly explained across dedicated trust routes.
+- **Decision:**
+  - **Trust & Compliance Routes:** Created `/privacy` (P-01 to P-04 guarantee, IndexedDB caching details), `/terms` (full user ownership, permissive open-source AI models), `/about` (browser-native mission, WebGPU/WASM technology stack), and `/contact` (GitHub issues and feedback).
+  - **Global Footer Navigation (`src/components/Footer.astro`):** Integrated across all pages via `src/layouts/Layout.astro`, providing links to all 5 tools and legal pages.
+  - **Site-Wide Verification:** All 11 pages (10 indexable tools and compliance routes plus 1 internal worker lab) validated through automated SEO, privacy audit, and sitemap generation pipelines.
+- **Options rejected:** Hiding terms in modal popups; third-party hosted privacy policies that inject external cookies.
+- **Risk:** None. Content is static, self-hosted, and validated on every build.

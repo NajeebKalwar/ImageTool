@@ -1,0 +1,112 @@
+---
+import { siteConfig } from '../site.config';
+---
+
+<footer class="mt-20 border-t border-slate-800 bg-slate-950/80 text-slate-400 text-xs">
+  <div class="max-w-5xl mx-auto px-4 py-12 space-y-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+      {/* Brand & Mission */}
+      <div class="space-y-3 sm:col-span-2 md:col-span-1">
+        <div class="text-base font-bold text-slate-100 flex items-center gap-2">
+          <span>{siteConfig.name}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-400 font-semibold uppercase">
+            Private
+          </span>
+        </div>
+        <p class="text-slate-400 leading-relaxed">
+          Free, privacy-first image processing platform. All operations execute directly inside your browser with zero cloud image uploads.
+        </p>
+      </div>
+
+      {/* AI Neural Tools */}
+      <div class="space-y-2.5">
+        <h4 class="font-semibold text-slate-200 uppercase tracking-wider text-[11px]">
+          AI Neural Tools
+        </h4>
+        <ul class="space-y-2">
+          <li>
+            <a href="/background-remover" class="hover:text-indigo-400 transition-colors">
+              AI Background Remover
+            </a>
+          </li>
+          <li>
+            <a href="/image-upscaler" class="hover:text-indigo-400 transition-colors">
+              AI Image Upscaler (4x)
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      {/* Optimization Tools */}
+      <div class="space-y-2.5">
+        <h4 class="font-semibold text-slate-200 uppercase tracking-wider text-[11px]">
+          Optimization Tools
+        </h4>
+        <ul class="space-y-2">
+          <li>
+            <a href="/image-compressor" class="hover:text-indigo-400 transition-colors">
+              Image Compressor
+            </a>
+          </li>
+          <li>
+            <a href="/webp-converter" class="hover:text-indigo-400 transition-colors">
+              WebP Converter
+            </a>
+          </li>
+          <li>
+            <a href="/image-resizer" class="hover:text-indigo-400 transition-colors">
+              Image Resizer &amp; Dimensions
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      {/* Trust & Legal */}
+      <div class="space-y-2.5">
+        <h4 class="font-semibold text-slate-200 uppercase tracking-wider text-[11px]">
+          Trust &amp; Legal
+        </h4>
+        <ul class="space-y-2">
+          <li>
+            <a href="/privacy" class="hover:text-indigo-400 transition-colors">
+              Privacy Policy (P-01 to P-04)
+            </a>
+          </li>
+          <li>
+            <a href="/terms" class="hover:text-indigo-400 transition-colors">
+              Terms of Service
+            </a>
+          </li>
+          <li>
+            <a href="/about" class="hover:text-indigo-400 transition-colors">
+              About ImageTool
+            </a>
+          </li>
+          <li>
+            <a href="/contact" class="hover:text-indigo-400 transition-colors">
+              Contact &amp; Feedback
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    {/* Bottom Copyright & Guarantee */}
+    <div class="pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-500">
+      <div>
+        &copy; {new Date().getFullYear()} ImageTool. Built for privacy, speed, and discoverability.
+      </div>
+      <div class="flex items-center gap-4">
+        <a
+          href="https://github.com/NajeebKalwar/ImageTool"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-slate-300 transition-colors flex items-center gap-1.5"
+        >
+          <span>GitHub</span>
+          <span aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>

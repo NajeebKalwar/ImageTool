@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { siteConfig } from '../site.config';
+import Footer from '../components/Footer.astro';
 
 interface Props {
   /** Page-specific title without the site name suffix. */
@@ -116,5 +117,6 @@ const jsonLdString = jsonLd ? JSON.stringify(jsonLd) : null;
       Skip to main content
     </a>
     <slot />
+    <Footer />
   </body>
 </html>

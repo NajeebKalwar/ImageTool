@@ -1,0 +1,82 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout
+  title="About Us"
+  description="Learn about ImageTool: our privacy-first mission, browser-native architecture, WebGPU and Web Workers stack, and open source ethos."
+  path="/about"
+>
+  <main id="main-content" class="max-w-4xl mx-auto px-4 py-12 space-y-10 text-slate-300">
+    <header class="space-y-3">
+      <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-indigo-950 border border-indigo-800 text-indigo-400 text-xs font-semibold uppercase">
+        Open Source Mission
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-100 tracking-tight">
+        About ImageTool
+      </h1>
+      <p class="text-slate-400 text-base leading-relaxed">
+        Free, private, browser-native image tools designed for the modern web.
+      </p>
+    </header>
+
+    {/* The Mission */}
+    <section class="space-y-4 text-sm leading-relaxed">
+      <h2 class="text-xl font-bold text-slate-100">
+        Our Mission: True Zero-Cloud Privacy
+      </h2>
+      <p>
+        Every day, millions of people upload personal family photos, business screenshots, and confidential documents to online converters and background removers without realizing that those images are stored, analyzed, and processed on remote cloud servers.
+      </p>
+      <p>
+        <strong>ImageTool was created to change that.</strong> We believe that modern web browsers and personal devices are fast enough to run state-of-the-art vision AI and high-resolution image processing locally. By bringing compute to your device instead of sending your images to the cloud, we eliminate server latency, eliminate cloud hosting costs, and provide a 100% airtight privacy guarantee.
+      </p>
+    </section>
+
+    {/* The Technology Stack */}
+    <section class="p-6 bg-slate-900/60 rounded-xl border border-slate-800 space-y-4">
+      <h2 class="text-xl font-bold text-slate-100">
+        How It Works: The Technology Stack
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs leading-relaxed">
+        <div class="p-3.5 bg-slate-950/60 rounded-lg border border-slate-800/80">
+          <h3 class="font-bold text-slate-200 mb-1">WebGPU &amp; WebAssembly</h3>
+          <p class="text-slate-400">
+            Executes quantized ONNX neural networks directly on your device GPU via modern WebGPU compute shaders, with seamless multi-threaded WebAssembly fallback for older devices.
+          </p>
+        </div>
+
+        <div class="p-3.5 bg-slate-950/60 rounded-lg border border-slate-800/80">
+          <h3 class="font-bold text-slate-200 mb-1">Background Web Workers</h3>
+          <p class="text-slate-400">
+            Image decoding (via OffscreenCanvas and createImageBitmap) and neural evaluation run in dedicated worker threads, preserving 60 FPS interface smoothness without UI freezing.
+          </p>
+        </div>
+
+        <div class="p-3.5 bg-slate-950/60 rounded-lg border border-slate-800/80">
+          <h3 class="font-bold text-slate-200 mb-1">Astro Static SEO Shell</h3>
+          <p class="text-slate-400">
+            Static site generation with zero-drift JSON-LD structured data ensures blazing-fast first contentful paint (FCP) and optimal discoverability across search engines.
+          </p>
+        </div>
+
+        <div class="p-3.5 bg-slate-950/60 rounded-lg border border-slate-800/80">
+          <h3 class="font-bold text-slate-200 mb-1">Tiled Cosine Blending</h3>
+          <p class="text-slate-400">
+            High-resolution AI upscaling uses mathematical 2D cosine bell curve feathering across overlapping tiles, completely eliminating GPU out-of-memory errors and visible seam lines.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    {/* Open Source */}
+    <section class="space-y-4 text-sm leading-relaxed">
+      <h2 class="text-xl font-bold text-slate-100">
+        Open Source &amp; Community
+      </h2>
+      <p>
+        ImageTool is an open-source project hosted on GitHub at <a href="https://github.com/NajeebKalwar/ImageTool" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline">NajeebKalwar/ImageTool</a>. Contributions, bug reports, feature requests, and code audits are welcome.
+      </p>
+    </section>
+  </main>
+</Layout>

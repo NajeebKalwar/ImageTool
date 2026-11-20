@@ -1,0 +1,112 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout
+  title="Privacy Policy"
+  description="ImageTool privacy policy: 100% on-device image processing with zero cloud uploads, no tracking cookies, and no third-party data sharing."
+  path="/privacy"
+>
+  <main id="main-content" class="max-w-4xl mx-auto px-4 py-12 space-y-10 text-slate-300">
+    <header class="space-y-3">
+      <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-emerald-950 border border-emerald-800 text-emerald-400 text-xs font-semibold uppercase">
+        Verified On-Device Privacy
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-100 tracking-tight">
+        Privacy Policy &amp; Security Architecture
+      </h1>
+      <p class="text-slate-400 text-base leading-relaxed">
+        Last updated: November 2026. ImageTool was engineered from day one to guarantee that your images, pixels, and file metadata never leave your computer.
+      </p>
+    </header>
+
+    {/* P-01 to P-04 Guarantees */}
+    <section class="p-6 bg-slate-900/60 rounded-xl border border-slate-800 space-y-4">
+      <h2 class="text-xl font-bold text-slate-100">
+        Our Core Privacy Commitments (P-01 to P-04)
+      </h2>
+      <div class="space-y-4 text-sm leading-relaxed">
+        <div>
+          <h3 class="font-semibold text-emerald-400 mb-1">
+            P-01: Zero Image Pixel Uploads
+          </h3>
+          <p class="text-slate-400">
+            When you select an image, its raw bytes are transferred directly into an isolated background Web Worker on your device. The image is decoded and processed in local memory. At no point are your image bytes or pixels ever transmitted across the internet.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-emerald-400 mb-1">
+            P-02: 100% Local Neural AI Inference
+          </h3>
+          <p class="text-slate-400">
+            Our machine learning models (BiRefNet-lite, MODNet, Swin2SR, Real-ESRGAN) execute on your graphics card via WebGPU or your CPU via WebAssembly. Model weights are downloaded to your browser once, but your personal photos are never sent to remote inference servers.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-emerald-400 mb-1">
+            P-03: No Third-Party Tracking or Analytics
+          </h3>
+          <p class="text-slate-400">
+            ImageTool contains zero third-party tracking scripts, session recording tools, behavioral analytics, or advertising telemetry. We do not use Google Analytics, Meta Pixel, or any commercial tracking SDKs.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-emerald-400 mb-1">
+            P-04: Enforced by Technical Architecture
+          </h3>
+          <p class="text-slate-400">
+            Our privacy promises are not just legal statements; they are technically enforced by a strict Content Security Policy (CSP), cross-origin isolation (COOP/COEP), and automated build verification tests that run on every release.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    {/* Information We Collect */}
+    <section class="space-y-4 text-sm leading-relaxed">
+      <h2 class="text-xl font-bold text-slate-100">
+        Information We Collect
+      </h2>
+      <p>
+        <strong>We do not collect personal information.</strong> You do not need to create an account, log in, or provide an email address to use ImageTool. We have no user databases and store no personal records.
+      </p>
+      <p>
+        When you visit our website, standard web server logs may temporarily record connection metadata (such as your IP address, browser user agent, and requested page path) purely for server health and DDoS mitigation.
+      </p>
+    </section>
+
+    {/* Cookies & Browser Storage */}
+    <section class="space-y-4 text-sm leading-relaxed">
+      <h2 class="text-xl font-bold text-slate-100">
+        Cookies and Local Storage
+      </h2>
+      <p>
+        <strong>Cookies:</strong> ImageTool uses no tracking cookies, marketing cookies, or profiling identifiers.
+      </p>
+      <p>
+        <strong>IndexedDB Cache:</strong> When you run an AI tool, open-source model weights (e.g. 16 MB – 45 MB) are downloaded and stored in your browser's private IndexedDB database (<code class="text-indigo-300 font-mono text-xs">imagetool-ai-cache</code>). This allows the tool to load instantly on subsequent visits without re-downloading files. You can clear this cache at any time via your browser settings.
+      </p>
+    </section>
+
+    {/* Content Security Policy Notice */}
+    <section class="space-y-4 text-sm leading-relaxed">
+      <h2 class="text-xl font-bold text-slate-100">
+        Network Security &amp; Content Security Policy
+      </h2>
+      <p>
+        To prevent unauthorized network exfiltration, ImageTool enforces a strict Content Security Policy:
+      </p>
+      <ul class="list-disc list-inside space-y-1.5 text-slate-400 font-mono text-xs">
+        <li>connect-src 'self' blob: data: https://huggingface.co https://*.huggingface.co</li>
+        <li>default-src 'self'</li>
+        <li>object-src 'none'</li>
+        <li>form-action 'none'</li>
+      </ul>
+      <p class="text-slate-400">
+        The only external network requests permitted by the browser are fetching static model weight files from verified Hugging Face CDN endpoints.
+      </p>
+    </section>
+  </main>
+</Layout>
