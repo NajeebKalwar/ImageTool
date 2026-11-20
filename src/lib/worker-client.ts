@@ -161,6 +161,29 @@ export class ImageWorkerClient {
   }
 
   /**
+   * Convenience: load an AI model in the worker using WebGPU or WASM fallback.
+   */
+  loadAiModel(modelId: string): Promise<ReplyMap['ai_load']> {
+    return this.request({ type: 'ai_load', modelId });
+  }
+
+  /**
+   * Convenience: run local background removal on image pixels in the worker.
+   * Transfers pixel buffer zero-copy.
+   */
+  removeBackground(
+    modelId: string,
+    width: number,
+    height: number,
+    pixels: ArrayBuffer,
+  ): Promise<ReplyMap['ai_remove_background']> {
+    return this.request(
+      { type: 'ai_remove_background', modelId, width, height, pixels },
+      [pixels],
+    );
+  }
+
+  /**
    * Terminate the worker and reject all pending requests.
    *
    * Safe to call multiple times.

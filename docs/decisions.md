@@ -144,3 +144,16 @@ This file is the source of truth for project-level decisions. Add a dated entry 
   - **Social sharing & Open Graph:** `src/layouts/Layout.astro` emits Open Graph (`og:*`), Twitter Cards (`twitter:*`), and `application/ld+json` tags. An absolute OG image is resolved from `siteConfig.defaultSocialImage` (`public/images/social/default-og.png`) or a tool-specific asset.
 - **Options rejected:** Astro Content Collections with markdown/MDX (premature complexity for static tool apps with interactive React islands); maintaining schema markup in separate static JSON files; client-rendered metadata (invisible to search crawlers).
 - **Risk:** Content authors must update `src/content/tools.ts` rather than directly typing in `.astro` files. This trade-off is intentional to prevent metadata/DOM divergence.
+
+## ADR-015: Local AI inference runtime, model registry, WebGPU/WASM fallback, and IndexedDB caching
+
+- **Status:** Accepted (Phase 5).
+- **Problem:** AI image features (such as background removal and upscaling) typically rely on remote SaaS APIs, violating the P-01 privacy requirement (pixels must never leave user devices) and incurring recurring hosting and API costs.
+- **Principle:** All AI inference runs locally in the client browser. Model weights may be fetched over CDN, but image pixels are strictly processed on-device.
+- **Decision:**
+  - **License-clean Model Registry (`src/lib/ai/model-registry.ts`):** Only models with verified commercial-friendly licenses are approved: `BiRefNet-lite` (MIT), `MODNet` (Apache-2.0), `Swin2SR` (Apache-2.0), and `Real-ESRGAN-compact` (BSD-3-Clause). Known restrictive or non-commercial models (`RMBG-1.4/2.0`, `CodeFormer`, `ISNet`, `APISR`) are explicitly prohibited.
+  - **Hardware acceleration with fallback (`src/lib/ai/device.ts`):** The runtime detects `navigator.gpu` (WebGPU) for near-native hardware-accelerated tensor math and falls back seamlessly to multi-threaded WebAssembly (WASM).
+  - **Persistent IndexedDB Cache (`src/lib/ai/model-cache.ts`):** Model weight buffers are cached using `idb-keyval` under the `imagetool-ai-cache` store. First run downloads the model with real-time percentage progress; subsequent runs load instantly offline with 0 network bandwidth.
+  - **Worker isolation:** Tensor execution and pixel matting run in a Web Worker thread, keeping the user interface completely responsive during neural network evaluation.
+- **Options rejected:** Remote inference endpoints / serverless GPU APIs (violates P-01 to P-04 privacy promise); bundling multi-megabyte model weights into the static JavaScript application bundle (destroys initial page load performance and Core Web Vitals); unverified model sources with ambiguous licensing terms.
+- **Risk:** WebGPU support varies across browser vendors and drivers. Low-end mobile devices may experience memory constraints with larger models; Phase 6 introduces tiled inference and device memory throttling to address low-end hardware.

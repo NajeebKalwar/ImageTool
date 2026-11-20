@@ -327,4 +327,65 @@ describe('ImageWorkerClient', () => {
       expect(result.data).toBe(outputBuf);
     }
   });
+
+  // -----------------------------------------------------------------------
+  // 13 — loadAiModel() sends ai_load request and resolves
+  // -----------------------------------------------------------------------
+  it('sends ai_load request and resolves with ai_loaded', async () => {
+    const promise = client.loadAiModel('modnet');
+
+    expect(worker.posted).toHaveLength(1);
+    const msg = worker.posted[0];
+    expect(msg.type).toBe('ai_load');
+    if (msg.type === 'ai_load') {
+      expect(msg.modelId).toBe('modnet');
+    }
+
+    worker.respond({
+      type: 'ai_loaded',
+      id: msg.id,
+      modelId: 'modnet',
+      backend: 'webgpu',
+    });
+
+    const result = await promise;
+    expect(result.type).toBe('ai_loaded');
+    if (result.type === 'ai_loaded') {
+      expect(result.backend).toBe('webgpu');
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // 14 — removeBackground() transfers pixel buffer and resolves with ai_result
+  // -----------------------------------------------------------------------
+  it('sends ai_remove_background request and resolves with ai_result', async () => {
+    const pixels = new ArrayBuffer(16);
+    const promise = client.removeBackground('modnet', 2, 2, pixels);
+
+    expect(worker.posted).toHaveLength(1);
+    const msg = worker.posted[0];
+    expect(msg.type).toBe('ai_remove_background');
+    if (msg.type === 'ai_remove_background') {
+      expect(msg.modelId).toBe('modnet');
+      expect(msg.pixels).toBe(pixels);
+    }
+
+    const outputPixels = new ArrayBuffer(16);
+    worker.respond({
+      type: 'ai_result',
+      id: msg.id,
+      modelId: 'modnet',
+      width: 2,
+      height: 2,
+      pixels: outputPixels,
+      durationMs: 55,
+    });
+
+    const result = await promise;
+    expect(result.type).toBe('ai_result');
+    if (result.type === 'ai_result') {
+      expect(result.durationMs).toBe(55);
+      expect(result.pixels).toBe(outputPixels);
+    }
+  });
 });

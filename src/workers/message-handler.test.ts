@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_PIXELS } from '../lib/worker-protocol';
 import { handleMessage, type HandlerResult } from './message-handler';
 import type { ImageEngine } from '../lib/canvas-ops';
+import { MockAiPipeline, type AiPipeline } from '../lib/ai/inference';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -11,8 +12,12 @@ function makePixels(w: number, h: number): ArrayBuffer {
   return new ArrayBuffer(w * h * 4);
 }
 
-async function send(data: unknown, engine?: ImageEngine): Promise<HandlerResult> {
-  return await handleMessage(data, engine);
+async function send(
+  data: unknown,
+  engine?: ImageEngine,
+  aiPipeline?: AiPipeline,
+): Promise<HandlerResult> {
+  return await handleMessage(data, engine, aiPipeline);
 }
 
 // Mock engine for testing message-handler in Node
@@ -367,6 +372,86 @@ describe('convert — message handling', () => {
       expect(response.id).toBe(21);
       expect(response.format).toBe('image/jpeg');
       expect(transfer).toHaveLength(1);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10 — AI operations: ai_load and ai_remove_background
+// ---------------------------------------------------------------------------
+
+describe('ai operations — message handling', () => {
+  const mockAi = new MockAiPipeline();
+
+  it('loads a valid registered model', async () => {
+    const { response } = await send({
+      type: 'ai_load',
+      id: 30,
+      modelId: 'modnet',
+    });
+
+    expect(response.type).toBe('ai_loaded');
+    if (response.type === 'ai_loaded') {
+      expect(response.id).toBe(30);
+      expect(response.modelId).toBe('modnet');
+      expect(response.backend).toBe('webgpu');
+    }
+  });
+
+  it('rejects loading an unknown model', async () => {
+    const { response } = await send({
+      type: 'ai_load',
+      id: 31,
+      modelId: 'non-existent-ai',
+    });
+
+    expect(response.type).toBe('error');
+    if (response.type === 'error') {
+      expect(response.message).toContain('not found in registry');
+    }
+  });
+
+  it('fails background removal when aiPipeline is not provided', async () => {
+    const pixels = makePixels(2, 2);
+    const { response } = await send({
+      type: 'ai_remove_background',
+      id: 32,
+      modelId: 'modnet',
+      width: 2,
+      height: 2,
+      pixels,
+    });
+
+    expect(response.type).toBe('error');
+    if (response.type === 'error') {
+      expect(response.message).toContain('AI inference pipeline not available');
+    }
+  });
+
+  it('executes background removal successfully with pipeline', async () => {
+    const pixels = makePixels(4, 4);
+    const { response, transfer } = await send(
+      {
+        type: 'ai_remove_background',
+        id: 33,
+        modelId: 'modnet',
+        width: 4,
+        height: 4,
+        pixels,
+      },
+      undefined,
+      mockAi,
+    );
+
+    expect(response.type).toBe('ai_result');
+    if (response.type === 'ai_result') {
+      expect(response.id).toBe(33);
+      expect(response.modelId).toBe('modnet');
+      expect(response.width).toBe(4);
+      expect(response.height).toBe(4);
+      expect(response.durationMs).toBeGreaterThan(0);
+      expect(transfer).toHaveLength(1);
+      expect(transfer[0]).toBe(pixels);
     }
   });
 });

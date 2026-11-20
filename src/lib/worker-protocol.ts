@@ -60,6 +60,17 @@ export type RequestBody =
       imageBuffer: ArrayBuffer;
       targetFormat: SupportedFormat;
       quality?: number;
+    }
+  | {
+      type: 'ai_load';
+      modelId: string;
+    }
+  | {
+      type: 'ai_remove_background';
+      modelId: string;
+      width: number;
+      height: number;
+      pixels: ArrayBuffer;
     };
 
 /**
@@ -89,6 +100,21 @@ export type WorkerToMain =
       format: SupportedFormat;
       data: ArrayBuffer;
     }
+  | {
+      type: 'ai_loaded';
+      id: number;
+      modelId: string;
+      backend: 'webgpu' | 'wasm';
+    }
+  | {
+      type: 'ai_result';
+      id: number;
+      modelId: string;
+      width: number;
+      height: number;
+      pixels: ArrayBuffer;
+      durationMs: number;
+    }
   | { type: 'error'; id: number; message: string };
 
 /**
@@ -99,4 +125,6 @@ export type ReplyMap = {
   invert: Extract<WorkerToMain, { type: 'result' }>;
   resize: Extract<WorkerToMain, { type: 'image_result' }>;
   convert: Extract<WorkerToMain, { type: 'image_result' }>;
+  ai_load: Extract<WorkerToMain, { type: 'ai_loaded' }>;
+  ai_remove_background: Extract<WorkerToMain, { type: 'ai_result' }>;
 };

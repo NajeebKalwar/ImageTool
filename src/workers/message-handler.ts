@@ -5,6 +5,8 @@ import {
   type ImageEngine,
 } from '../lib/canvas-ops';
 import { invertRgba } from '../lib/image-ops';
+import type { AiPipeline } from '../lib/ai/inference';
+import { getModelMetadata, isLicenseClean } from '../lib/ai/model-registry';
 import {
   MAX_PIXELS,
   type ResizeOptions,
@@ -52,6 +54,7 @@ const isPositiveInteger = (value: unknown): value is number =>
 export async function handleMessage(
   data: unknown,
   engine?: ImageEngine,
+  aiPipeline?: AiPipeline,
 ): Promise<HandlerResult> {
   // 1. Validate the incoming message container.
   if (typeof data !== 'object' || data === null) {
@@ -211,6 +214,85 @@ export async function handleMessage(
             data: res.data,
           },
           transfer: [res.data],
+        };
+      }
+
+      case 'ai_load': {
+        const { modelId } = record;
+        if (typeof modelId !== 'string' || !modelId) {
+          return fail(id, 'Model ID must be a non-empty string.');
+        }
+
+        const meta = getModelMetadata(modelId);
+        if (!meta) {
+          return fail(id, `Model '${modelId}' not found in registry.`);
+        }
+
+        if (!isLicenseClean(meta)) {
+          return fail(id, `Model '${modelId}' does not have an approved commercial license.`);
+        }
+
+        return {
+          response: {
+            type: 'ai_loaded',
+            id,
+            modelId,
+            backend: meta.preferredBackend,
+          },
+          transfer: [],
+        };
+      }
+
+      case 'ai_remove_background': {
+        const { modelId, width, height, pixels } = record;
+
+        if (typeof modelId !== 'string' || !modelId) {
+          return fail(id, 'Model ID must be a non-empty string.');
+        }
+
+        const meta = getModelMetadata(modelId);
+        if (!meta) {
+          return fail(id, `Model '${modelId}' not found in registry.`);
+        }
+
+        if (!isPositiveInteger(width) || !isPositiveInteger(height)) {
+          return fail(id, 'Width and height must be positive integers.');
+        }
+
+        if (width * height > MAX_PIXELS) {
+          return fail(id, `Image exceeds MAX_PIXELS (${width * height} > ${MAX_PIXELS}).`);
+        }
+
+        if (!(pixels instanceof ArrayBuffer)) {
+          return fail(id, 'Pixel data must be an ArrayBuffer.');
+        }
+
+        const expectedBytes = width * height * 4;
+        if (pixels.byteLength !== expectedBytes) {
+          return fail(id, `Expected ${expectedBytes} bytes of RGBA data, got ${pixels.byteLength}.`);
+        }
+
+        if (!aiPipeline) {
+          return fail(id, 'AI inference pipeline not available.');
+        }
+
+        const clampedPixels = new Uint8ClampedArray(pixels);
+        const aiRes = await aiPipeline.runBackgroundRemoval(clampedPixels, width, height, {
+          modelId,
+          preferredBackend: meta.preferredBackend,
+        });
+
+        return {
+          response: {
+            type: 'ai_result',
+            id,
+            modelId,
+            width: aiRes.width,
+            height: aiRes.height,
+            pixels,
+            durationMs: aiRes.durationMs,
+          },
+          transfer: [pixels],
         };
       }
 
