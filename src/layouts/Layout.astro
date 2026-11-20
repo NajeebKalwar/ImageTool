@@ -11,9 +11,23 @@ interface Props {
   path: string;
   /** Exclude this page from indexing in production. */
   noindex?: boolean;
+  /** Optional custom social share image path (root-relative). */
+  ogImage?: string;
+  /** Open Graph type (defaults to 'website'). */
+  ogType?: 'website' | 'article';
+  /** Optional JSON-LD structured data object(s). */
+  jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
-const { title, description, path, noindex = false } = Astro.props;
+const {
+  title,
+  description,
+  path,
+  noindex = false,
+  ogImage,
+  ogType = 'website',
+  jsonLd,
+} = Astro.props;
 
 const pageTitle = title.trim();
 const pageDescription = description.trim();
@@ -53,6 +67,12 @@ const robots = !isProduction
 // The home page remains "/"; other paths have no trailing slash.
 const canonicalPath = path === '/' ? '/' : path.replace(/\/+$/, '');
 const canonicalUrl = new URL(canonicalPath, Astro.site);
+
+// Resolve social image to absolute URL
+const ogImagePath = ogImage || siteConfig.defaultSocialImage;
+const absoluteOgImageUrl = new URL(ogImagePath, Astro.site).href;
+
+const jsonLdString = jsonLd ? JSON.stringify(jsonLd) : null;
 ---
 
 <!doctype html>
@@ -64,6 +84,25 @@ const canonicalUrl = new URL(canonicalPath, Astro.site);
     <meta name="description" content={pageDescription} />
     <link rel="canonical" href={canonicalUrl.href} />
     <meta name="robots" content={robots} />
+
+    {/* Open Graph */}
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:url" content={canonicalUrl.href} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content={siteConfig.name} />
+    <meta property="og:image" content={absoluteOgImageUrl} />
+
+    {/* Twitter */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={pageDescription} />
+    <meta name="twitter:image" content={absoluteOgImageUrl} />
+
+    {/* JSON-LD Structured Data */}
+    {jsonLdString && (
+      <script type="application/ld+json" set:html={jsonLdString} />
+    )}
   </head>
   <body>
     <slot />

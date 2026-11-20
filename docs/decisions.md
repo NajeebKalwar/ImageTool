@@ -130,3 +130,17 @@ This file is the source of truth for project-level decisions. Add a dated entry 
   - **Engine abstraction for testing:** An `ImageEngine` interface decouples the pure protocol and dimension math from browser canvas globals, allowing full Node.js unit testing with Vitest.
 - **Options rejected:** Decoding on main thread via `HTMLImageElement` and passing raw RGBA buffer to worker (unnecessary main-thread memory spike); server-side processing (violates P-01 privacy guarantee); third-party WASM codecs (adds heavy bundle overhead when modern browsers natively support WebP/JPEG/PNG via OffscreenCanvas).
 - **Risk:** Older browsers without `OffscreenCanvas` or `createImageBitmap` in workers are unsupported. `OffscreenCanvas` memory limits vary by operating system and device GPU. Phase 6 will add tiling and low-end device benchmarks.
+
+## ADR-014: Single-source typed content schema for SEO, AEO, and JSON-LD structured data
+
+- **Status:** Accepted (Phase 4).
+- **Problem:** Search engines, AI answer engines (AEO), and generative engines (GEO) penalize sites whose structured data (JSON-LD) drifts from the visible HTML content. Hardcoding steps, FAQs, and metadata separately in page templates and `<script>` tags inevitably leads to drift and maintenance overhead.
+- **Principle:** A single typed TypeScript schema is the single source of truth for page copy, step-by-step guides, FAQs, Open Graph tags, and Schema.org structured data.
+- **Decision:**
+  - **Schema (`src/content/schema.ts`):** Defines `ToolDefinition` with required `title`, `description`, `headline`, `tagline`, `howItWorks`, `steps`, `features`, and `faqs`.
+  - **Registry (`src/content/tools.ts`):** Central typed catalog of all tools (`TOOLS`).
+  - **Zero-drift JSON-LD (`src/lib/json-ld.ts`):** `generateToolJsonLd()` derives `WebApplication`, `HowTo`, and `FAQPage` schemas directly from `tool.steps` and `tool.faqs`. Search engines receive exact structural parity with the rendered DOM.
+  - **Reusable tool template (`src/components/ToolPageContent.astro`):** Renders the hero, slot for the interactive island, technical explanation, ordered steps, format highlights, and FAQ list using the structured schema.
+  - **Social sharing & Open Graph:** `src/layouts/Layout.astro` emits Open Graph (`og:*`), Twitter Cards (`twitter:*`), and `application/ld+json` tags. An absolute OG image is resolved from `siteConfig.defaultSocialImage` (`public/images/social/default-og.png`) or a tool-specific asset.
+- **Options rejected:** Astro Content Collections with markdown/MDX (premature complexity for static tool apps with interactive React islands); maintaining schema markup in separate static JSON files; client-rendered metadata (invisible to search crawlers).
+- **Risk:** Content authors must update `src/content/tools.ts` rather than directly typing in `.astro` files. This trade-off is intentional to prevent metadata/DOM divergence.
