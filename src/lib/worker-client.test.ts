@@ -1,0 +1,261 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ImageWorkerClient, type WorkerLike } from './worker-client';
+import type { MainToWorker, WorkerToMain } from './worker-protocol';
+
+// ---------------------------------------------------------------------------
+// Fake Worker — a minimal in-memory stub
+// ---------------------------------------------------------------------------
+
+type MessageHandler = (event: { data: WorkerToMain }) => void;
+type ErrorHandler = (event: unknown) => void;
+
+class FakeWorker implements WorkerLike {
+  /** Messages posted by the client. */
+  readonly posted: MainToWorker[] = [];
+
+  private messageHandlers: MessageHandler[] = [];
+  private errorHandlers: ErrorHandler[] = [];
+
+  terminated = false;
+
+  postMessage(message: MainToWorker, _transfer: Transferable[]): void {
+    this.posted.push(message);
+  }
+
+  addEventListener(type: 'message', handler: MessageHandler): void;
+  addEventListener(type: 'error', handler: ErrorHandler): void;
+  addEventListener(type: string, handler: MessageHandler | ErrorHandler): void {
+    if (type === 'message') this.messageHandlers.push(handler as MessageHandler);
+    if (type === 'error') this.errorHandlers.push(handler as ErrorHandler);
+  }
+
+  removeEventListener(type: 'message', handler: MessageHandler): void;
+  removeEventListener(type: 'error', handler: ErrorHandler): void;
+  removeEventListener(type: string, handler: MessageHandler | ErrorHandler): void {
+    if (type === 'message') {
+      this.messageHandlers = this.messageHandlers.filter((h) => h !== handler);
+    }
+    if (type === 'error') {
+      this.errorHandlers = this.errorHandlers.filter((h) => h !== handler);
+    }
+  }
+
+  terminate(): void {
+    this.terminated = true;
+  }
+
+  // --- Test helpers (not part of WorkerLike) ---
+
+  /** Simulate the worker sending a response. */
+  respond(data: WorkerToMain): void {
+    for (const handler of this.messageHandlers) {
+      handler({ data });
+    }
+  }
+
+  /** Simulate a worker error event. */
+  emitError(event: unknown = new Error('Worker crashed')): void {
+    for (const handler of this.errorHandlers) {
+      handler(event);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('ImageWorkerClient', () => {
+  let worker: FakeWorker;
+  let client: ImageWorkerClient;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    worker = new FakeWorker();
+    client = new ImageWorkerClient(worker, 5_000); // 5s timeout for tests
+  });
+
+  afterEach(() => {
+    client.terminate();
+    vi.useRealTimers();
+  });
+
+  // -----------------------------------------------------------------------
+  // 1 — ping / pong round-trip
+  // -----------------------------------------------------------------------
+  it('resolves a ping request with pong', async () => {
+    const promise = client.ping();
+
+    // The client should have posted a message with an id.
+    expect(worker.posted).toHaveLength(1);
+    expect(worker.posted[0].type).toBe('ping');
+    const sentId = worker.posted[0].id;
+
+    // Simulate the worker responding.
+    worker.respond({ type: 'pong', id: sentId });
+
+    const result = await promise;
+    expect(result).toEqual({ type: 'pong', id: sentId });
+    expect(client.pendingCount).toBe(0);
+  });
+
+  // -----------------------------------------------------------------------
+  // 2 — Request IDs are unique and incrementing
+  // -----------------------------------------------------------------------
+  it('assigns incrementing request IDs', async () => {
+    // Suppress the unhandled rejections from terminate() in afterEach.
+    const p1 = client.ping().catch(() => {});
+    const p2 = client.ping().catch(() => {});
+
+    expect(worker.posted).toHaveLength(2);
+    expect(worker.posted[0].id).toBe(1);
+    expect(worker.posted[1].id).toBe(2);
+
+    // Resolve both so afterEach terminate() has nothing to reject.
+    worker.respond({ type: 'pong', id: 1 });
+    worker.respond({ type: 'pong', id: 2 });
+    await p1;
+    await p2;
+  });
+
+  // -----------------------------------------------------------------------
+  // 3 — Error responses reject the promise
+  // -----------------------------------------------------------------------
+  it('rejects when the worker replies with an error', async () => {
+    const promise = client.ping();
+    const sentId = worker.posted[0].id;
+
+    worker.respond({ type: 'error', id: sentId, message: 'Something broke' });
+
+    await expect(promise).rejects.toThrow('Something broke');
+    expect(client.pendingCount).toBe(0);
+  });
+
+  // -----------------------------------------------------------------------
+  // 4 — Timeout rejects the promise
+  // -----------------------------------------------------------------------
+  it('rejects when a request times out', async () => {
+    const promise = client.ping();
+
+    // Advance past the timeout.
+    vi.advanceTimersByTime(6_000);
+
+    await expect(promise).rejects.toThrow(/timed out/);
+    expect(client.pendingCount).toBe(0);
+  });
+
+  // -----------------------------------------------------------------------
+  // 5 — Worker error event rejects all pending
+  // -----------------------------------------------------------------------
+  it('rejects all pending requests on worker error event', async () => {
+    const p1 = client.ping();
+    const p2 = client.ping();
+    expect(client.pendingCount).toBe(2);
+
+    worker.emitError();
+
+    await expect(p1).rejects.toThrow(/Worker error/);
+    await expect(p2).rejects.toThrow(/Worker error/);
+    expect(client.pendingCount).toBe(0);
+  });
+
+  // -----------------------------------------------------------------------
+  // 6 — terminate() rejects pending and prevents new requests
+  // -----------------------------------------------------------------------
+  it('rejects pending requests on terminate and blocks new ones', async () => {
+    const promise = client.ping();
+
+    client.terminate();
+
+    await expect(promise).rejects.toThrow(/terminated/i);
+    expect(client.isTerminated).toBe(true);
+    expect(worker.terminated).toBe(true);
+
+    // New requests after terminate should reject immediately.
+    await expect(client.ping()).rejects.toThrow(/terminated/i);
+  });
+
+  // -----------------------------------------------------------------------
+  // 7 — terminate() is idempotent
+  // -----------------------------------------------------------------------
+  it('allows multiple terminate() calls without throwing', () => {
+    client.terminate();
+    expect(() => client.terminate()).not.toThrow();
+    expect(client.isTerminated).toBe(true);
+  });
+
+  // -----------------------------------------------------------------------
+  // 8 — Stale/unexpected messages are silently ignored
+  // -----------------------------------------------------------------------
+  it('ignores messages with unknown IDs', async () => {
+    const promise = client.ping();
+    const sentId = worker.posted[0].id;
+
+    // Send a response with a different ID.
+    worker.respond({ type: 'pong', id: sentId + 999 });
+
+    // The original request is still pending.
+    expect(client.pendingCount).toBe(1);
+
+    // Now resolve it properly.
+    worker.respond({ type: 'pong', id: sentId });
+    const result = await promise;
+    expect(result.type).toBe('pong');
+  });
+
+  // -----------------------------------------------------------------------
+  // 9 — invert() sends correct message and resolves
+  // -----------------------------------------------------------------------
+  it('sends an invert request and resolves with result', async () => {
+    const buf = new ArrayBuffer(4);
+    const promise = client.invert(1, 1, buf);
+
+    expect(worker.posted).toHaveLength(1);
+    const msg = worker.posted[0];
+    expect(msg.type).toBe('invert');
+    if (msg.type === 'invert') {
+      expect(msg.width).toBe(1);
+      expect(msg.height).toBe(1);
+      expect(msg.pixels).toBe(buf);
+    }
+
+    const resultBuf = new ArrayBuffer(4);
+    worker.respond({
+      type: 'result',
+      id: msg.id,
+      width: 1,
+      height: 1,
+      pixels: resultBuf,
+    });
+
+    const result = await promise;
+    expect(result.type).toBe('result');
+    if (result.type === 'result') {
+      expect(result.pixels).toBe(resultBuf);
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // 10 — Multiple concurrent requests resolve independently
+  // -----------------------------------------------------------------------
+  it('tracks multiple concurrent requests independently', async () => {
+    const p1 = client.ping();
+    const p2 = client.ping();
+    expect(client.pendingCount).toBe(2);
+
+    const id1 = worker.posted[0].id;
+    const id2 = worker.posted[1].id;
+
+    // Resolve in reverse order.
+    worker.respond({ type: 'pong', id: id2 });
+    expect(client.pendingCount).toBe(1);
+
+    worker.respond({ type: 'pong', id: id1 });
+    expect(client.pendingCount).toBe(0);
+
+    const r1 = await p1;
+    const r2 = await p2;
+    expect(r1.id).toBe(id1);
+    expect(r2.id).toBe(id2);
+  });
+});

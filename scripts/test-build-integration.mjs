@@ -112,16 +112,17 @@ try {
   // if (!config.includes(emptyList)) {
   //   throw new Error('Could not find the expected empty NOINDEX_PATHS list in astro.config.mjs.');
   // }
-  const emptyListPattern =
-    /const NOINDEX_PATHS\s*=\s*new Set\(\[\s*\/\/\s*'\/example-private-page',?\s*\]\);/;
+  const baseListPattern =
+    /const NOINDEX_PATHS\s*=\s*new Set\(\[[\s\S]*?\]\);/;
 
   const withTestPage = `const NOINDEX_PATHS = new Set([
+  '/worker-lab',
   '/seo-noindex-test',
   ]);`;
 
-  if (!emptyListPattern.test(config)) {
+  if (!baseListPattern.test(config)) {
     throw new Error(
-      'Could not find the expected empty NOINDEX_PATHS list in astro.config.mjs.'
+      'Could not find the expected NOINDEX_PATHS list in astro.config.mjs.'
     );
   }
 
@@ -192,7 +193,7 @@ try {
   // writeFileSync(configPath, config.replace(emptyList, withTestPage));
   writeFileSync(
     configPath,
-    config.replace(emptyListPattern, withTestPage)
+    config.replace(baseListPattern, withTestPage)
   );
   rmSync(dist, { recursive: true, force: true });
   run(process.execPath, [astroCli, 'build'], temporaryRoot, buildEnv);

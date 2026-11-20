@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import WorkerLab from '../components/WorkerLab';
+---
+
+<Layout
+  title="Worker Lab"
+  description="Internal test page for the Web Worker image processing pipeline."
+  path="/worker-lab"
+  noindex={true}
+>
+  <main>
+    <h1>Worker Lab</h1>
+    <WorkerLab client:only="react" />
+  </main>
+</Layout>

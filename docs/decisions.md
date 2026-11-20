@@ -101,3 +101,18 @@ This file is the source of truth for project-level decisions. Add a dated entry 
 - **Problem:** Ignore rules prevent future local environment files from being added, but they do not detect secrets that may already exist in earlier commits.
 - **Decision:** A separate CI job uses Gitleaks Action and checks out the repository with fetch-depth: 0, so the scan has the full Git history available. It runs on pushes and pull requests to main. Confirmed exposed credentials must be revoked or rotated; deleting a secret from the latest file alone does not make an earlier commit safe.
 - **Risk:** Automated secret scanners can produce false positives and cannot guarantee detection of every secret format. Review findings rather than silently allowlisting them.
+
+## ADR-012: Web Worker protocol and client
+
+- **Status:** Accepted.
+- **Problem:** Image processing (pixel manipulation, future AI inference) must not block the main thread, but Web Workers communicate through untyped `postMessage`, making it easy for messages to be mis-structured, lost, or leak memory via un-transferred buffers.
+- **Principle:** Keep the worker boundary strongly typed and independently testable in Node without browser globals.
+- **Decision:**
+  - **Protocol (`src/lib/worker-protocol.ts`):** A shared TypeScript module defines `MainToWorker` (tagged union of request types plus a numeric `id`) and `WorkerToMain` (tagged union of response types echoing the `id`). A `ReplyMap` type maps each request type to its successful response type, enabling end-to-end type safety.
+  - **Message handler (`src/workers/message-handler.ts`):** A pure function `handleMessage(data: unknown) → { response, transfer }` that validates inputs at runtime (structural checks, dimension guards, `MAX_PIXELS` size cap, `ArrayBuffer` type and byte-length checks) and returns a typed response plus a list of transferable buffers. It imports no worker globals, so it is fully testable in Node.
+  - **Worker client (`src/lib/worker-client.ts`):** `ImageWorkerClient` wraps a `WorkerLike` interface (satisfied by the real `Worker` and by test stubs). It assigns auto-incrementing request IDs, tracks in-flight requests in a `Map<id, { resolve, reject, timer }>`, and rejects on timeout, worker error events, or termination. Convenience methods (`ping()`, `invert()`) provide typed, transfer-aware entry points.
+  - **Worker entrypoint (`src/workers/image-worker.ts`):** A thin adapter that listens for `message` events, delegates to `handleMessage()`, and posts the response with `{ transfer }`.
+  - **Pixel transfer:** `ArrayBuffer` pixel data is transferred (zero-copy) in both directions. The sender loses access after transfer; the receiver owns the buffer.
+  - **Size cap:** `MAX_PIXELS = 25_000_000` is provisional and will be re-evaluated in Phase 6 after low-end device testing.
+- **Options rejected:** Comlink (adds a dependency and hides the message boundary behind proxy magic, making transfer semantics opaque); SharedArrayBuffer (requires COOP/COEP headers that complicate third-party script loading and are unnecessary for request/response workflows); untyped `postMessage` with ad-hoc validation.
+- **Risk:** The `WorkerLike` test abstraction does not cover real browser `Worker` lifecycle edge cases (e.g., worker script 404, CSP blocking `blob:` URLs, `import.meta.url` resolution across bundlers). The Worker Lab page provides a manual browser smoke test. Automated browser tests are deferred to a future phase.

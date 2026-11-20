@@ -26,7 +26,7 @@ const isProduction = SITE_ENV === 'production';
 // Keep every page that sets noindex: true here as well.
  /** @type {Set<string>} */
 const NOINDEX_PATHS = new Set([
-  // '/example-private-page',
+  '/worker-lab',
 ]);
 
 /**
