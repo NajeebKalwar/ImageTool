@@ -71,6 +71,20 @@ export type RequestBody =
       width: number;
       height: number;
       pixels: ArrayBuffer;
+    }
+  | {
+      type: 'ai_upscale';
+      modelId: string;
+      scale: number;
+      width: number;
+      height: number;
+      pixels: ArrayBuffer;
+      tileSize?: number;
+      overlap?: number;
+    }
+  | {
+      type: 'cancel';
+      targetId: number;
     };
 
 /**
@@ -115,6 +129,29 @@ export type WorkerToMain =
       pixels: ArrayBuffer;
       durationMs: number;
     }
+  | {
+      type: 'ai_progress';
+      id: number;
+      currentTile: number;
+      totalTiles: number;
+      percent: number;
+      stage: 'preparing' | 'tiling' | 'blending' | 'complete';
+    }
+  | {
+      type: 'ai_upscale_result';
+      id: number;
+      modelId: string;
+      scale: number;
+      width: number;
+      height: number;
+      pixels: ArrayBuffer;
+      durationMs: number;
+    }
+  | {
+      type: 'cancelled';
+      id: number;
+      targetId: number;
+    }
   | { type: 'error'; id: number; message: string };
 
 /**
@@ -127,4 +164,6 @@ export type ReplyMap = {
   convert: Extract<WorkerToMain, { type: 'image_result' }>;
   ai_load: Extract<WorkerToMain, { type: 'ai_loaded' }>;
   ai_remove_background: Extract<WorkerToMain, { type: 'ai_result' }>;
+  ai_upscale: Extract<WorkerToMain, { type: 'ai_upscale_result' }>;
+  cancel: Extract<WorkerToMain, { type: 'cancelled' }>;
 };

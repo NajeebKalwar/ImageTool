@@ -388,4 +388,112 @@ describe('ImageWorkerClient', () => {
       expect(result.pixels).toBe(outputPixels);
     }
   });
+
+  // -----------------------------------------------------------------------
+  // 15 — upscaleImage() streaming progress and result
+  // -----------------------------------------------------------------------
+  it('sends ai_upscale request, receives streaming progress, and resolves', async () => {
+    const pixels = new ArrayBuffer(64);
+    const progressList: number[] = [];
+
+    const promise = client.upscaleImage(
+      'swin2sr-x4',
+      4,
+      4,
+      4,
+      pixels,
+      { tileSize: 16, overlap: 4 },
+      undefined,
+      (p) => progressList.push(p.percent),
+    );
+
+    expect(worker.posted).toHaveLength(1);
+    const msg = worker.posted[0];
+    expect(msg.type).toBe('ai_upscale');
+
+    // Simulate streaming progress from worker
+    worker.respond({
+      type: 'ai_progress',
+      id: msg.id,
+      currentTile: 1,
+      totalTiles: 2,
+      percent: 50,
+      stage: 'tiling',
+    });
+
+    expect(progressList).toEqual([50]);
+    // The request should still be pending after progress update
+    expect(client.pendingCount).toBe(1);
+
+    const outPixels = new ArrayBuffer(1024);
+    worker.respond({
+      type: 'ai_upscale_result',
+      id: msg.id,
+      modelId: 'swin2sr-x4',
+      scale: 4,
+      width: 16,
+      height: 16,
+      pixels: outPixels,
+      durationMs: 120,
+    });
+
+    const result = await promise;
+    expect(result.type).toBe('ai_upscale_result');
+    if (result.type === 'ai_upscale_result') {
+      expect(result.scale).toBe(4);
+      expect(result.width).toBe(16);
+      expect(result.pixels).toBe(outPixels);
+    }
+    expect(client.pendingCount).toBe(0);
+  });
+
+  // -----------------------------------------------------------------------
+  // 16 — cancel() sends cancel request
+  // -----------------------------------------------------------------------
+  it('sends cancel request and resolves with cancelled response', async () => {
+    const promise = client.cancel(99);
+
+    expect(worker.posted).toHaveLength(1);
+    const msg = worker.posted[0];
+    expect(msg.type).toBe('cancel');
+    if (msg.type === 'cancel') {
+      expect(msg.targetId).toBe(99);
+    }
+
+    worker.respond({
+      type: 'cancelled',
+      id: msg.id,
+      targetId: 99,
+    });
+
+    const result = await promise;
+    expect(result.type).toBe('cancelled');
+    if (result.type === 'cancelled') {
+      expect(result.targetId).toBe(99);
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // 17 — AbortSignal integration rejects request and triggers cancel
+  // -----------------------------------------------------------------------
+  it('aborts pending request when AbortSignal triggers', async () => {
+    const controller = new AbortController();
+    const promise = client.request({ type: 'ping' }, [], controller.signal);
+
+    expect(worker.posted).toHaveLength(1);
+    const pingId = worker.posted[0].id;
+
+    // Trigger abort
+    controller.abort();
+
+    await expect(promise).rejects.toThrow('Operation cancelled');
+
+    // Should have sent cancel message to worker
+    expect(worker.posted.length).toBeGreaterThanOrEqual(2);
+    const cancelMsg = worker.posted[worker.posted.length - 1];
+    expect(cancelMsg.type).toBe('cancel');
+    if (cancelMsg.type === 'cancel') {
+      expect(cancelMsg.targetId).toBe(pingId);
+    }
+  });
 });

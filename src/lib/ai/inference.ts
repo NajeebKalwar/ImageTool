@@ -6,6 +6,7 @@
  */
 
 import { getModelMetadata, type ExecutionBackend } from './model-registry';
+import { calculateTiles, extractTileRgba, stitchTiles, type ScaledTileResult } from './tiling';
 
 export interface PreprocessedTensor {
   data: Float32Array;
@@ -22,6 +23,30 @@ export interface AiInferenceResult {
   mask: Float32Array;
   width: number;
   height: number;
+  backendUsed: ExecutionBackend;
+  durationMs: number;
+}
+
+export interface AiUpscaleOptions {
+  modelId: string;
+  scale: number;
+  tileSize?: number;
+  overlap?: number;
+  preferredBackend?: ExecutionBackend;
+}
+
+export interface AiProgressInfo {
+  currentTile: number;
+  totalTiles: number;
+  percent: number;
+  stage: 'preparing' | 'tiling' | 'blending' | 'complete';
+}
+
+export interface AiUpscaleResult {
+  pixels: Uint8ClampedArray;
+  width: number;
+  height: number;
+  scale: number;
   backendUsed: ExecutionBackend;
   durationMs: number;
 }
@@ -95,6 +120,15 @@ export interface AiPipeline {
     height: number,
     options: AiInferenceOptions,
   ): Promise<AiInferenceResult>;
+
+  runUpscaling(
+    imagePixels: Uint8ClampedArray,
+    width: number,
+    height: number,
+    options: AiUpscaleOptions,
+    onProgress?: (progress: AiProgressInfo) => void,
+    isCancelled?: () => boolean,
+  ): Promise<AiUpscaleResult>;
 }
 
 /**
@@ -131,8 +165,103 @@ export class MockAiPipeline implements AiPipeline {
       mask,
       width,
       height,
-      backendUsed: options.preferredBackend || 'wasm',
+      backendUsed: options.preferredBackend || meta.preferredBackend || 'wasm',
       durationMs: 42,
+    };
+  }
+
+  async runUpscaling(
+    imagePixels: Uint8ClampedArray,
+    width: number,
+    height: number,
+    options: AiUpscaleOptions,
+    onProgress?: (progress: AiProgressInfo) => void,
+    isCancelled?: () => boolean,
+  ): Promise<AiUpscaleResult> {
+    const meta = getModelMetadata(options.modelId);
+    if (!meta) throw new Error(`Unknown model: ${options.modelId}`);
+
+    const startTime = Date.now();
+    const scale = options.scale;
+    const outWidth = Math.round(width * scale);
+    const outHeight = Math.round(height * scale);
+    const tileSize = options.tileSize || 256;
+    const overlap = options.overlap || 32;
+
+    onProgress?.({
+      currentTile: 0,
+      totalTiles: 1,
+      percent: 0,
+      stage: 'preparing',
+    });
+
+    if (isCancelled?.()) throw new Error('Operation cancelled');
+
+    const tiles = calculateTiles(width, height, tileSize, overlap);
+    const scaledResults: ScaledTileResult[] = [];
+
+    for (let i = 0; i < tiles.length; i++) {
+      if (isCancelled?.()) throw new Error('Operation cancelled');
+
+      const tile = tiles[i];
+      const tileRgba = extractTileRgba(imagePixels, width, height, tile);
+
+      // Mock upscale: nearest-neighbor replication
+      const scaledW = Math.round(tile.width * scale);
+      const scaledH = Math.round(tile.height * scale);
+      const scaledRgba = new Uint8ClampedArray(scaledW * scaledH * 4);
+
+      for (let sy = 0; sy < scaledH; sy++) {
+        const srcY = Math.min(tile.height - 1, Math.floor(sy / scale));
+        for (let sx = 0; sx < scaledW; sx++) {
+          const srcX = Math.min(tile.width - 1, Math.floor(sx / scale));
+          const srcIdx = (srcY * tile.width + srcX) * 4;
+          const destIdx = (sy * scaledW + sx) * 4;
+
+          scaledRgba[destIdx] = tileRgba[srcIdx];
+          scaledRgba[destIdx + 1] = tileRgba[srcIdx + 1];
+          scaledRgba[destIdx + 2] = tileRgba[srcIdx + 2];
+          scaledRgba[destIdx + 3] = tileRgba[srcIdx + 3];
+        }
+      }
+
+      scaledResults.push({
+        tile,
+        scaledRgba,
+        scale,
+      });
+
+      onProgress?.({
+        currentTile: i + 1,
+        totalTiles: tiles.length,
+        percent: Math.round(((i + 1) / tiles.length) * 100),
+        stage: 'tiling',
+      });
+    }
+
+    onProgress?.({
+      currentTile: tiles.length,
+      totalTiles: tiles.length,
+      percent: 100,
+      stage: 'blending',
+    });
+
+    const outputPixels = stitchTiles(outWidth, outHeight, scaledResults, overlap);
+
+    onProgress?.({
+      currentTile: tiles.length,
+      totalTiles: tiles.length,
+      percent: 100,
+      stage: 'complete',
+    });
+
+    return {
+      pixels: outputPixels,
+      width: outWidth,
+      height: outHeight,
+      scale,
+      backendUsed: options.preferredBackend || meta.preferredBackend || 'wasm',
+      durationMs: Date.now() - startTime,
     };
   }
 }

@@ -454,4 +454,72 @@ describe('ai operations — message handling', () => {
       expect(transfer[0]).toBe(pixels);
     }
   });
+
+  it('rejects ai_upscale with invalid dimensions or scale', async () => {
+    const pixels = makePixels(4, 4);
+    const { response } = await send(
+      {
+        type: 'ai_upscale',
+        id: 34,
+        modelId: 'swin2sr-x4',
+        scale: -1,
+        width: 4,
+        height: 4,
+        pixels,
+      },
+      undefined,
+      mockAi,
+    );
+
+    expect(response.type).toBe('error');
+    if (response.type === 'error') {
+      expect(response.message).toContain('Scale factor must be a positive number');
+    }
+  });
+
+  it('executes ai_upscale successfully with progress and transferable buffer', async () => {
+    const pixels = makePixels(8, 8);
+    const progressList: unknown[] = [];
+
+    const { response, transfer } = await handleMessage(
+      {
+        type: 'ai_upscale',
+        id: 35,
+        modelId: 'swin2sr-x4',
+        scale: 2,
+        width: 8,
+        height: 8,
+        pixels,
+        tileSize: 4,
+        overlap: 1,
+      },
+      undefined,
+      mockAi,
+      (p) => progressList.push(p),
+    );
+
+    expect(response.type).toBe('ai_upscale_result');
+    if (response.type === 'ai_upscale_result') {
+      expect(response.id).toBe(35);
+      expect(response.scale).toBe(2);
+      expect(response.width).toBe(16);
+      expect(response.height).toBe(16);
+      expect(response.pixels.byteLength).toBe(16 * 16 * 4);
+      expect(transfer).toHaveLength(1);
+    }
+    expect(progressList.length).toBeGreaterThan(0);
+  });
+
+  it('handles cancel request and marks targetId as cancelled', async () => {
+    const { response } = await send({
+      type: 'cancel',
+      id: 36,
+      targetId: 100,
+    });
+
+    expect(response.type).toBe('cancelled');
+    if (response.type === 'cancelled') {
+      expect(response.targetId).toBe(100);
+    }
+  });
 });

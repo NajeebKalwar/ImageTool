@@ -2,7 +2,8 @@
  * Main-thread client for the image processing Web Worker.
  *
  * Sends typed messages, tracks in-flight requests with Promise-based
- * request IDs, and handles timeouts and worker crashes.
+ * request IDs, handles streaming progress events, cancellation signals,
+ * timeouts, and worker crashes.
  */
 
 import type {
@@ -37,10 +38,15 @@ export interface WorkerLike {
 // Pending request tracking
 // ---------------------------------------------------------------------------
 
+export type ProgressCallback = (progress: Extract<WorkerToMain, { type: 'ai_progress' }>) => void;
+
 interface PendingRequest<T extends keyof ReplyMap = keyof ReplyMap> {
   resolve: (value: ReplyMap[T]) => void;
   reject: (reason: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  onProgress?: ProgressCallback;
+  signal?: AbortSignal;
+  abortListener?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +54,7 @@ interface PendingRequest<T extends keyof ReplyMap = keyof ReplyMap> {
 // ---------------------------------------------------------------------------
 
 /** Default timeout for worker requests (ms). */
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 export class ImageWorkerClient {
   private nextId = 1;
@@ -81,28 +87,48 @@ export class ImageWorkerClient {
    * - the worker replies with `{ type: 'error' }`,
    * - the request times out,
    * - the worker fires an error event,
-   * - the client has already been terminated.
+   * - the client has already been terminated,
+   * - the request is aborted via AbortSignal.
    */
   request<T extends RequestBody['type']>(
     body: Extract<RequestBody, { type: T }>,
     transfer: Transferable[] = [],
+    signal?: AbortSignal,
+    onProgress?: ProgressCallback,
   ): Promise<ReplyMap[T]> {
     if (this.terminated) {
       return Promise.reject(new Error('Worker client has been terminated.'));
+    }
+
+    if (signal?.aborted) {
+      return Promise.reject(new Error('Operation cancelled'));
     }
 
     const id = this.nextId++;
 
     return new Promise<ReplyMap[T]>((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.pending.delete(id);
+        this.cleanupRequest(id);
         reject(new Error(`Worker request ${id} timed out after ${this.timeoutMs}ms.`));
       }, this.timeoutMs);
+
+      let abortListener: (() => void) | undefined;
+      if (signal) {
+        abortListener = () => {
+          this.cancel(id).catch(() => {});
+          this.cleanupRequest(id);
+          reject(new Error('Operation cancelled'));
+        };
+        signal.addEventListener('abort', abortListener, { once: true });
+      }
 
       this.pending.set(id, {
         resolve: resolve as PendingRequest['resolve'],
         reject,
         timer,
+        onProgress,
+        signal,
+        abortListener,
       });
 
       const message = { ...body, id } as MainToWorker;
@@ -184,6 +210,44 @@ export class ImageWorkerClient {
   }
 
   /**
+   * Convenience: run AI super-resolution / upscaling on image pixels in the worker.
+   * Supports streaming progress events and cancellation via AbortSignal.
+   */
+  upscaleImage(
+    modelId: string,
+    scale: number,
+    width: number,
+    height: number,
+    pixels: ArrayBuffer,
+    options?: { tileSize?: number; overlap?: number },
+    signal?: AbortSignal,
+    onProgress?: ProgressCallback,
+  ): Promise<ReplyMap['ai_upscale']> {
+    return this.request(
+      {
+        type: 'ai_upscale',
+        modelId,
+        scale,
+        width,
+        height,
+        pixels,
+        tileSize: options?.tileSize,
+        overlap: options?.overlap,
+      },
+      [pixels],
+      signal,
+      onProgress,
+    );
+  }
+
+  /**
+   * Request cancellation of a pending worker request.
+   */
+  cancel(targetId: number): Promise<ReplyMap['cancel']> {
+    return this.request({ type: 'cancel', targetId });
+  }
+
+  /**
    * Terminate the worker and reject all pending requests.
    *
    * Safe to call multiple times.
@@ -198,6 +262,9 @@ export class ImageWorkerClient {
 
     for (const [id, entry] of this.pending) {
       clearTimeout(entry.timer);
+      if (entry.signal && entry.abortListener) {
+        entry.signal.removeEventListener('abort', entry.abortListener);
+      }
       entry.reject(new Error(`Worker terminated while request ${id} was pending.`));
     }
     this.pending.clear();
@@ -221,13 +288,38 @@ export class ImageWorkerClient {
   // Internal event handlers
   // -----------------------------------------------------------------------
 
+  private cleanupRequest(id: number): PendingRequest | undefined {
+    const entry = this.pending.get(id);
+    if (entry) {
+      clearTimeout(entry.timer);
+      if (entry.signal && entry.abortListener) {
+        entry.signal.removeEventListener('abort', entry.abortListener);
+      }
+      this.pending.delete(id);
+    }
+    return entry;
+  }
+
   private handleMessage(event: { data: WorkerToMain }): void {
     const msg = event.data;
-    const entry = this.pending.get(msg.id);
-    if (!entry) return; // stale or unexpected message
 
-    clearTimeout(entry.timer);
-    this.pending.delete(msg.id);
+    // Handle streaming progress events without resolving the pending request
+    if (msg.type === 'ai_progress') {
+      const entry = this.pending.get(msg.id);
+      if (entry) {
+        entry.onProgress?.(msg);
+        // Refresh timeout timer as long as progress is actively reported
+        clearTimeout(entry.timer);
+        entry.timer = setTimeout(() => {
+          this.cleanupRequest(msg.id);
+          entry.reject(new Error(`Worker request ${msg.id} timed out after ${this.timeoutMs}ms.`));
+        }, this.timeoutMs);
+      }
+      return;
+    }
+
+    const entry = this.cleanupRequest(msg.id);
+    if (!entry) return; // stale or unexpected message
 
     if (msg.type === 'error') {
       entry.reject(new Error(msg.message));
@@ -241,6 +333,9 @@ export class ImageWorkerClient {
     // Reject all pending requests.
     for (const [id, entry] of this.pending) {
       clearTimeout(entry.timer);
+      if (entry.signal && entry.abortListener) {
+        entry.signal.removeEventListener('abort', entry.abortListener);
+      }
       entry.reject(new Error(`Worker error while request ${id} was pending.`));
     }
     this.pending.clear();

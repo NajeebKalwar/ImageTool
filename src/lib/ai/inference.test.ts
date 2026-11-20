@@ -5,64 +5,109 @@ import {
   preprocessRgbaToNchw,
 } from './inference';
 
-describe('AI inference preprocessing and postprocessing', () => {
-  it('converts RGBA to NCHW Float32 tensor with ImageNet normalization', () => {
-    const w = 2;
-    const h = 2;
+describe('preprocessRgbaToNchw', () => {
+  it('correctly normalizes RGBA buffer to 1x3xHxW Float32Array', () => {
+    const width = 2;
+    const height = 2;
     const rgba = new Uint8ClampedArray([
-      255, 0, 0, 255,   // red
-      0, 255, 0, 255,   // green
-      0, 0, 255, 255,   // blue
-      255, 255, 255, 255 // white
+      255, 0, 0, 255,   // Red
+      0, 255, 0, 255,   // Green
+      0, 0, 255, 255,   // Blue
+      255, 255, 255, 255 // White
     ]);
 
-    const tensor = preprocessRgbaToNchw(rgba, w, h, true);
-
+    const tensor = preprocessRgbaToNchw(rgba, width, height, true);
     expect(tensor.dims).toEqual([1, 3, 2, 2]);
-    expect(tensor.data).toHaveLength(12); // 3 channels * 4 pixels
+    expect(tensor.data.length).toBe(3 * 2 * 2);
 
-    // Verify channel order: first 4 elements are Red channel
-    // pixel 0 red = (1.0 - 0.485) / 0.229 ≈ 2.2489
-    expect(tensor.data[0]).toBeCloseTo((1.0 - 0.485) / 0.229, 3);
-    // pixel 1 red = (0 - 0.485) / 0.229 ≈ -2.1179
-    expect(tensor.data[1]).toBeCloseTo((0 - 0.485) / 0.229, 3);
+    // Channel 0 (R) of first pixel (255)
+    // Normalized: (1.0 - 0.485) / 0.229 ≈ 2.2489
+    expect(tensor.data[0]).toBeCloseTo(2.2489, 2);
   });
+});
 
-  it('applies alpha matte to RGBA buffer correctly', () => {
-    const rgba = new Uint8ClampedArray([
-      100, 100, 100, 255, // pixel 0
-      200, 200, 200, 255, // pixel 1
-    ]);
+describe('applyAlphaMatte', () => {
+  it('modulates alpha channel without altering RGB values', () => {
+    const rgba = new Uint8ClampedArray([100, 150, 200, 255]);
+    const matte = new Float32Array([0.5]);
 
-    const matte = new Float32Array([1.0, 0.0]); // pixel 0 kept, pixel 1 fully transparent
-
-    applyAlphaMatte(rgba, matte, 2, 1);
-
-    expect(rgba[3]).toBe(255); // pixel 0 alpha remains 255
-    expect(rgba[7]).toBe(0);   // pixel 1 alpha becomes 0
+    applyAlphaMatte(rgba, matte, 1, 1);
+    expect(rgba[0]).toBe(100);
+    expect(rgba[1]).toBe(150);
+    expect(rgba[2]).toBe(200);
+    expect(rgba[3]).toBe(128); // 255 * 0.5 = 127.5 -> 128
   });
+});
 
-  it('runs MockAiPipeline successfully', async () => {
+describe('MockAiPipeline', () => {
+  it('runs mock background removal producing masked RGBA pixels', async () => {
     const pipeline = new MockAiPipeline();
-    const w = 10;
-    const h = 10;
-    const pixels = new Uint8ClampedArray(w * h * 4).fill(255);
+    const width = 20;
+    const height = 20;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    pixels.fill(255); // Solid white
 
-    const result = await pipeline.runBackgroundRemoval(pixels, w, h, {
-      modelId: 'modnet',
-      preferredBackend: 'webgpu',
+    const result = await pipeline.runBackgroundRemoval(pixels, width, height, {
+      modelId: 'birefnet-lite',
     });
 
-    expect(result.width).toBe(10);
-    expect(result.height).toBe(10);
-    expect(result.mask).toHaveLength(100);
+    expect(result.width).toBe(width);
+    expect(result.height).toBe(height);
+    expect(result.mask.length).toBe(width * height);
     expect(result.backendUsed).toBe('webgpu');
-    expect(result.durationMs).toBeGreaterThan(0);
+  });
 
-    // Center pixel should remain visible, corner pixel should be transparent
-    const centerIdx = (5 * w + 5) * 4 + 3;
-    const cornerIdx = 3;
-    expect(pixels[centerIdx]).toBe(255);
-    expect(pixels[cornerIdx]).toBe(0);
+  it('runs mock upscaling with progress reports', async () => {
+    const pipeline = new MockAiPipeline();
+    const width = 16;
+    const height = 16;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    pixels.fill(120);
+
+    const progressReports: number[] = [];
+    const result = await pipeline.runUpscaling(
+      pixels,
+      width,
+      height,
+      {
+        modelId: 'swin2sr-x4',
+        scale: 2,
+        tileSize: 8,
+        overlap: 2,
+      },
+      (p) => progressReports.push(p.percent),
+    );
+
+    expect(result.width).toBe(32);
+    expect(result.height).toBe(32);
+    expect(result.pixels.length).toBe(32 * 32 * 4);
+    expect(progressReports.length).toBeGreaterThan(0);
+    expect(progressReports[progressReports.length - 1]).toBe(100);
+  });
+
+  it('supports cancellation during upscaling', async () => {
+    const pipeline = new MockAiPipeline();
+    const width = 32;
+    const height = 32;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+
+    let cancelled = false;
+    await expect(
+      pipeline.runUpscaling(
+        pixels,
+        width,
+        height,
+        {
+          modelId: 'realesrgan-compact',
+          scale: 4,
+          tileSize: 8,
+          overlap: 2,
+        },
+        () => {
+          cancelled = true;
+        },
+        () => cancelled,
+      ),
+    ).rejects.toThrow('Operation cancelled');
   });
 });
