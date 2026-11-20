@@ -1,59 +1,108 @@
 # ImageTool
 
-Browser-based image tools in early development.
+ImageTool is a free, privacy-first, browser-native image processing platform. All image decoding, manipulation, and machine learning inference run directly on the user's device via client-side Web Workers, OffscreenCanvas, WebGPU, and WebAssembly.
 
-The product is being designed around local image processing: image operations should run in the visitor's browser, with Web Workers for expensive work. The interactive editor will use React islands within an Astro website.
+Image bytes never leave the device. There are zero remote cloud uploads, no server-side processing queues, and no third-party tracking scripts.
 
-> **Privacy status:** Local processing is an architectural requirement, but the full network and third-party integration audit is not yet complete. Do not treat the privacy boundary as independently verified until the checks in [ARCHITECTURE.md](ARCHITECTURE.md) are complete.
+---
 
-## Project status
+## Features & Available Tools
 
-The project currently has its Astro foundation, shared SEO layout, production/preview robots rules, sitemap generation, automated SEO verification, and CI checks. Image tools and worker processing are being developed phase by phase.
+1. **Background Remover (`/background-remover`)**:
+   - Neural salient object segmentation running on-device via WebGPU with multi-threaded WASM fallback.
+   - Powered by commercial-friendly models (BiRefNet-lite, MODNet) with persistent IndexedDB weight caching.
 
-## Stack
+2. **AI Image Upscaler (`/image-upscaler`)**:
+   - 2x and 4x super-resolution (Swin2SR, Real-ESRGAN).
+   - Tiled execution with 2D cosine (Hann) seam blending to prevent WebGPU out-of-memory crashes on large images.
+   - Interactive before/after split comparison slider and cancellation support.
 
-- [Astro](https://astro.build) for the public website, static pages, metadata, and content
-- [React](https://react.dev) and TypeScript for interactive tools
-- [Tailwind CSS](https://tailwindcss.com) for styling
-- Web Workers for expensive image processing
-- ONNX Runtime Web is planned for browser-based AI inference
+3. **Image Resizer (`/image-resizer`)**:
+   - High-quality bicubic resampling inside dedicated background Web Workers.
+   - Aspect ratio constraints (`contain`, `cover`, `inside`, `fill`) and multi-format outputs.
 
-## Getting started
+4. **Image Compressor (`/image-compressor`)**:
+   - File size reduction with live byte calculation and compression ratio comparisons.
 
-Requires Node.js 22.23.4 or newer.
+5. **WebP Converter (`/webp-converter`)**:
+   - Fast client-side conversion between WebP, PNG, and JPEG with multi-file batch processing.
+
+6. **Trust & Compliance (`/privacy`, `/terms`, `/about`, `/contact`)**:
+   - Full legal disclosures, model license attributions, and contact channels.
+
+---
+
+## Technical Stack & Architecture
+
+- **Astro 7**: Static SEO shell, pre-rendered metadata, zero-drift JSON-LD (`WebApplication`, `HowTo`, `FAQPage`), and fail-closed robots/sitemap policies.
+- **React 19**: Interactive tool islands with W3C ARIA accessibility controls.
+- **Web Workers**: Off-thread image manipulation and neural inference preventing UI jank.
+- **WebGPU / WebAssembly**: Hardware-accelerated local AI execution using ONNX Runtime Web.
+- **Content Security Policy**: Strict browser-level network sandbox (`connect-src` limited to model CDNs, `form-action 'none'`).
+
+---
+
+## Requirements
+
+- **Node.js**: `>=22.23.4`
+
+---
+
+## Getting Started
 
 ```bash
+# Install dependencies
 npm ci
+
+# Start local Astro development server
 npm run dev
 ```
 
-## Verification
+---
 
-```bash
-npm run test:verify
-npm run test:integration
-npm run build
-npm run verify:preview
-```
+## Verification & Testing Suite
 
-Production-style build in PowerShell:
+ImageTool includes comprehensive test coverage for TypeScript, unit logic, SEO fail-closed rules, and privacy sandboxing:
 
 ```powershell
+# 1. Astro type and template check
+npm run check
+
+# 2. Vitest unit tests (worker protocol, image ops, tiling, memory policy)
+npm run test:unit
+
+# 3. SEO verifier test suite
+npm run test:verify
+
+# 4. Automated privacy audit (CSP & network exfiltration check)
+npm run test:privacy
+
+# 5. Build integration tests
+npm run test:integration
+
+# 6. Preview build verification (must emit noindex, nofollow)
+$env:SITE_ENV = "preview"
+npm run build
+npm run verify:preview
+
+# 7. Production build verification (must emit index, follow, and sitemap)
 $env:SITE_ENV = "production"
 npm run build
 npm run verify:production
-Remove-Item Env:SITE_ENV
+npm run verify:privacy
+Remove-Item Env:SITE_ENV -ErrorAction SilentlyContinue
 ```
 
-Set SITE_ENV=production only in the real production build environment. Without it, pages are emitted with noindex, nofollow and no production sitemap is generated.
+---
 
-The production origin in astro.config.mjs is currently a placeholder (https://imagetool.example). Replace it with the owned domain before launch.
+## Production Deployment Checklist
 
-## Project documentation
+1. **Production Domain**: Replace `https://imagetool.example` with your production domain in `astro.config.mjs`, `public/_headers`, and `src/layouts/Layout.astro`.
+2. **Environment Variables**: Configure `SITE_ENV=production` in your hosting platform (Cloudflare Pages, Netlify, or Vercel).
+3. **Security Headers**: Ensure hosting provider respects `public/_headers` (CSP, COOP `same-origin`, COEP `credentialless`).
 
-- [Architecture and privacy requirements](ARCHITECTURE.md)
-- [Architecture decision records](docs/decisions.md)
+---
 
 ## License
 
-No license has been selected yet. Until a license is added, do not assume that the repository grants permission to reuse, modify, or distribute its code.
+ImageTool is open source software released under the [MIT License](LICENSE).
