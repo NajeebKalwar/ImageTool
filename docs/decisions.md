@@ -203,3 +203,15 @@ This file is the source of truth for project-level decisions. Add a dated entry 
     - Fully keyboard-accessible file dropzones with Enter/Space triggers.
 - **Options rejected:** Claiming privacy without automated build assertions; client-side CSP without HTTP `_headers`; blocking model weight downloads entirely (would eliminate browser AI).
 - **Risk:** New AI models must only be hosted on allowlisted CDNs (`huggingface.co`). Any newly added CDN must be explicitly reviewed for privacy compliance before updating the CSP connect-src policy.
+
+## ADR-018: Dedicated Intent-Specific Tool Differentiation and Empirical Benchmark Data Architecture
+
+- **Status:** Accepted (Phase 8).
+- **Problem:** Broad generic tools (such as a single "Image Resizer & Converter") struggle to satisfy specific, high-volume search and user intents (such as "compress jpeg" or "convert png to webp"). Users and search/answer engines look for dedicated, tailored solutions with answer-first copy, specific defaults, and concrete performance evidence. Merging all functionality into one oversized UI creates cognitive overload and weakens topical authority.
+- **Principle:** Distinct intent, shared core. Each major user goal gets a dedicated, lightweight tool page and tailored UI island with zero-drift structured data, while sharing the underlying testable Web Worker canvas operations and model pipeline.
+- **Decision:**
+  - **Intent-Focused Tools (`src/content/tools.ts`):** Added `/image-compressor` (focused on file size reduction, target quality presets, byte savings comparison) and `/webp-converter` (focused on bidirectional WebP conversion and multi-file batch processing), alongside `/background-remover`, `/image-upscaler`, and `/image-resizer`.
+  - **Empirical Benchmark Architecture (`src/content/benchmarks.ts`):** Added a structured benchmark model (`BenchmarkData` / `BenchmarkMetric`) comparing on-device WebGPU, on-device WASM, and cloud API SaaS across latency, network bandwidth, and privacy. Rendered dynamically via `ToolPageContent.astro` to provide empirical proof of the privacy architecture.
+  - **Categorized Discovery (`src/pages/index.astro`):** The homepage cleanly separates tools into "On-Device AI Neural Tools (WebGPU / WASM)" and "Client-Side Optimization Tools (Web Worker)".
+- **Options rejected:** Creating completely separate worker implementations for each tool (violates DRY; core canvas/AI worker handles all operations); fabricating artificial benchmarks (all benchmarks reflect real on-device measurement vs typical network round-trip overhead).
+- **Risk:** Maintaining 5 tool pages requires ensuring content does not drift. Handled by the single-source `ToolDefinition` schema, where `json-ld.ts`, `verify-seo.mjs`, and `verify-privacy.mjs` validate all 5 pages on every build.

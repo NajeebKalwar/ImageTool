@@ -20,6 +20,21 @@ export interface ToolFeature {
   description: string;
 }
 
+export interface BenchmarkMetric {
+  label: string;
+  onDeviceWebGpu: string;
+  onDeviceWasm: string;
+  cloudService: string;
+  advantage: string;
+}
+
+export interface BenchmarkData {
+  title: string;
+  description: string;
+  environment: string; // e.g. "Apple M-Series / RTX 4060, Chrome 124, 1080p Image"
+  metrics: BenchmarkMetric[];
+}
+
 export interface HowItWorksSection {
   summary: string;
   technicalDetails: string;
@@ -43,6 +58,7 @@ export interface ToolDefinition {
   steps: ToolStep[];
   featuresHeading?: string;
   features: ToolFeature[];
+  benchmarks?: BenchmarkData;
   faqHeading?: string;
   faqs: ToolFaq[];
 }

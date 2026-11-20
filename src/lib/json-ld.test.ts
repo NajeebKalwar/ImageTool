@@ -69,4 +69,16 @@ describe('JSON-LD schema generation', () => {
     const types = schemas.map((s) => s['@type']);
     expect(types).toEqual(['WebApplication', 'HowTo', 'FAQPage']);
   });
+
+  it('retrieves all 5 intent-focused tools with benchmarks', () => {
+    const compressor = getToolBySlug('/image-compressor');
+    expect(compressor).toBeDefined();
+    expect(compressor?.category).toBe('compress');
+    expect(compressor?.benchmarks).toBeDefined();
+
+    const converter = getToolBySlug('/webp-converter');
+    expect(converter).toBeDefined();
+    expect(converter?.category).toBe('convert');
+    expect(converter?.benchmarks).toBeDefined();
+  });
 });
