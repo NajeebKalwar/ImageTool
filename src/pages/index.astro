@@ -7,8 +7,58 @@ import Layout from '../layouts/Layout.astro';
   description="Resize, compress, convert, enhance, and upscale images with privacy-first tools that process your images directly in your browser."
   path="/"
 >
-  <main>
-    <h1>ImageTool</h1>
-    <p>Free online image tools, with processing designed to run on your device.</p>
+  <main class="max-w-4xl mx-auto px-4 py-12">
+    <header class="text-center mb-12">
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-slate-100 tracking-tight mb-4">
+        ImageTool
+      </h1>
+      <p class="text-lg text-slate-400 max-w-2xl mx-auto">
+        Fast, browser-native image tools designed for absolute privacy.
+        All processing runs locally on your device.
+      </p>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Image Resizer Card */}
+      <a
+        href="/image-resizer"
+        class="group block p-6 bg-slate-900 hover:bg-slate-800/80 rounded-xl border border-slate-800 hover:border-indigo-500/50 transition-all shadow-lg hover:shadow-indigo-500/10"
+      >
+        <div class="w-10 h-10 mb-4 bg-indigo-950/80 border border-indigo-700/60 rounded-lg flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+        </div>
+        <h2 class="text-xl font-bold text-slate-100 group-hover:text-indigo-300 transition-colors mb-2">
+          Image Resizer &amp; Converter
+        </h2>
+        <p class="text-sm text-slate-400 leading-relaxed">
+          Scale pixel dimensions, preserve aspect ratios, adjust compression quality, and convert between PNG, JPEG, and WebP directly in your browser.
+        </p>
+        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-400 mt-4 group-hover:translate-x-1 transition-transform">
+          Open Resizer Tool &rarr;
+        </span>
+      </a>
+
+      {/* Privacy Guarantee Card */}
+      <div class="p-6 bg-slate-900/40 rounded-xl border border-slate-800/80 flex flex-col justify-between">
+        <div>
+          <div class="w-10 h-10 mb-4 bg-emerald-950/80 border border-emerald-700/60 rounded-lg flex items-center justify-center text-emerald-400">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold text-slate-100 mb-2">
+            Zero Server Uploads
+          </h2>
+          <p class="text-sm text-slate-400 leading-relaxed">
+            Your images are processed entirely inside background Web Workers using hardware acceleration. No third-party services or remote inference APIs ever see your pixels.
+          </p>
+        </div>
+        <span class="text-xs text-emerald-400/80 font-medium mt-4">
+          Verified Privacy Architecture (P-01 to P-04)
+        </span>
+      </div>
+    </div>
   </main>
 </Layout>
