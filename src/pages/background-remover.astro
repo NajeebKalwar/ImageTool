@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ToolPageContent from '../components/ToolPageContent.astro';
+import BackgroundRemover from '../components/BackgroundRemover';
+import { getToolBySlug } from '../content/tools';
+import { generateToolJsonLd } from '../lib/json-ld';
+
+const tool = getToolBySlug('/background-remover');
+if (!tool) {
+  throw new Error('Tool definition not found for /background-remover');
+}
+
+const jsonLd = generateToolJsonLd(tool, Astro.site!);
+---
+
+<Layout
+  title={tool.title}
+  description={tool.description}
+  path={tool.slug}
+  jsonLd={jsonLd}
+>
+  <ToolPageContent tool={tool}>
+    <BackgroundRemover client:load />
+  </ToolPageContent>
+</Layout>
