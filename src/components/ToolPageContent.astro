@@ -1,0 +1,96 @@
+---
+import type { ToolDefinition } from '../content/schema';
+
+interface Props {
+  tool: ToolDefinition;
+}
+
+const { tool } = Astro.props;
+---
+
+<main class="max-w-4xl mx-auto px-4 py-8">
+  {/* Tool Hero */}
+  <header class="mb-8 text-center">
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-100 tracking-tight mb-3">
+      {tool.headline}
+    </h1>
+    <p class="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto">
+      {tool.tagline}
+    </p>
+  </header>
+
+  {/* Interactive Tool Island Slot */}
+  <slot />
+
+  {/* Structured, Answer-First Content (Prevents DOM/Schema Drift) */}
+  <article class="mt-12 space-y-10 text-slate-300">
+    {/* How It Works */}
+    <section class="bg-slate-900/50 p-6 rounded-xl border border-slate-800">
+      <h2 class="text-xl font-bold text-slate-100 mb-3">
+        How Browser-Native Image Processing Works
+      </h2>
+      <p class="leading-relaxed mb-3">
+        {tool.howItWorks.summary}
+      </p>
+      <p class="leading-relaxed mb-3">
+        {tool.howItWorks.technicalDetails}
+      </p>
+      <p class="leading-relaxed text-sm text-emerald-400 font-medium">
+        🛡️ {tool.howItWorks.privacyGuarantee}
+      </p>
+    </section>
+
+    {/* Step-by-Step Instructions */}
+    {tool.steps.length > 0 && (
+      <section>
+        <h2 class="text-xl font-bold text-slate-100 mb-4">
+          {tool.stepsHeading || `Step-by-Step: How to Use ${tool.headline}`}
+        </h2>
+        <ol class="list-decimal list-inside space-y-2.5 text-slate-300">
+          {tool.steps.map((step) => (
+            <li>
+              <strong>{step.title}:</strong> {step.description}
+            </li>
+          ))}
+        </ol>
+      </section>
+    )}
+
+    {/* Feature / Format Highlights */}
+    {tool.features.length > 0 && (
+      <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {tool.features.map((feature) => (
+          <div class="bg-slate-900/40 p-4 rounded-lg border border-slate-800">
+            <h3 class="text-base font-semibold text-slate-200 mb-2">
+              {feature.title}
+            </h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              {feature.description}
+            </p>
+          </div>
+        ))}
+      </section>
+    )}
+
+    {/* Frequently Asked Questions */}
+    {tool.faqs.length > 0 && (
+      <section class="border-t border-slate-800 pt-8">
+        <h2 class="text-xl font-bold text-slate-100 mb-6">
+          {tool.faqHeading || 'Frequently Asked Questions'}
+        </h2>
+        <div class="space-y-4">
+          {tool.faqs.map((faq) => (
+            <div>
+              <h3 class="text-base font-semibold text-slate-200 mb-1">
+                {faq.question}
+              </h3>
+              <p class="text-sm text-slate-400 leading-relaxed">
+                {faq.answer}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+  </article>
+</main>

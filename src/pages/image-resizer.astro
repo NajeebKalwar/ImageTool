@@ -1,110 +1,25 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import ToolPageContent from '../components/ToolPageContent.astro';
 import ImageResizer from '../components/ImageResizer';
+import { getToolBySlug } from '../content/tools';
+import { generateToolJsonLd } from '../lib/json-ld';
+
+const tool = getToolBySlug('/image-resizer');
+if (!tool) {
+  throw new Error('Tool definition not found for /image-resizer');
+}
+
+const jsonLd = generateToolJsonLd(tool, Astro.site!);
 ---
 
 <Layout
-  title="Free Online Image Resizer & Converter"
-  description="Resize, convert, and optimize images directly in your browser. Fast, free, and completely private with zero server uploads."
-  path="/image-resizer"
+  title={tool.title}
+  description={tool.description}
+  path={tool.slug}
+  jsonLd={jsonLd}
 >
-  <main class="max-w-4xl mx-auto px-4 py-8">
-    <header class="mb-8 text-center">
-      <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-100 tracking-tight mb-3">
-        Free Online Image Resizer &amp; Converter
-      </h1>
-      <p class="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto">
-        Change dimensions, adjust quality, and convert image formats locally on your computer.
-        Your photos never leave your device.
-      </p>
-    </header>
-
-    {/* Interactive React Island */}
+  <ToolPageContent tool={tool}>
     <ImageResizer client:load />
-
-    {/* Explanatory, Answer-First SEO & Educational Content */}
-    <article class="mt-12 space-y-10 text-slate-300">
-      <section class="bg-slate-900/50 p-6 rounded-xl border border-slate-800">
-        <h2 class="text-xl font-bold text-slate-100 mb-3">
-          How Browser-Based Image Resizing Works
-        </h2>
-        <p class="leading-relaxed mb-3">
-          Unlike traditional image utilities that upload your sensitive images to a cloud server,
-          ImageTool utilizes high-performance browser APIs—including <strong>Web Workers</strong> and
-          <strong>OffscreenCanvas</strong>.
-        </p>
-        <p class="leading-relaxed">
-          When you select an image, its raw bytes are transferred to a background thread.
-          The image is decoded, scaled using high-quality bicubic resampling, and re-encoded into your chosen format
-          (WebP, JPEG, or PNG) without ever touching an external network endpoint.
-        </p>
-      </section>
-
-      <section>
-        <h2 class="text-xl font-bold text-slate-100 mb-4">
-          Step-by-Step: How to Resize and Convert an Image
-        </h2>
-        <ol class="list-decimal list-inside space-y-2.5 text-slate-300">
-          <li><strong>Upload your image:</strong> Drag and drop your file or click the box to browse. Files up to 50 MB are supported.</li>
-          <li><strong>Set your dimensions:</strong> Enter custom pixel dimensions or click one of the quick scale presets (25%, 50%, 75%, 200%). Keep aspect ratio locked to avoid distortion.</li>
-          <li><strong>Select output format:</strong> Choose WebP for modern web performance, JPEG for photographs, or PNG for lossless transparency.</li>
-          <li><strong>Click Resize &amp; Convert:</strong> The Web Worker will process your image in milliseconds.</li>
-          <li><strong>Download:</strong> Click download to save your optimized file directly to your downloads folder.</li>
-        </ol>
-      </section>
-
-      <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-slate-900/40 p-4 rounded-lg border border-slate-800">
-          <h3 class="text-base font-semibold text-slate-200 mb-2">WebP (Recommended)</h3>
-          <p class="text-sm text-slate-400">
-            Provides superior lossless and lossy compression. Produces files 25–35% smaller than comparable JPEGs at equivalent visual quality.
-          </p>
-        </div>
-        <div class="bg-slate-900/40 p-4 rounded-lg border border-slate-800">
-          <h3 class="text-base font-semibold text-slate-200 mb-2">JPEG</h3>
-          <p class="text-sm text-slate-400">
-            Universally compatible standard for complex photographs. Best suited for high-color images where transparency is not required.
-          </p>
-        </div>
-        <div class="bg-slate-900/40 p-4 rounded-lg border border-slate-800">
-          <h3 class="text-base font-semibold text-slate-200 mb-2">PNG</h3>
-          <p class="text-sm text-slate-400">
-            Lossless format with full alpha transparency support. Ideal for logos, icons, screenshots, and graphics with sharp text.
-          </p>
-        </div>
-      </section>
-
-      <section class="border-t border-slate-800 pt-8">
-        <h2 class="text-xl font-bold text-slate-100 mb-6">
-          Frequently Asked Questions
-        </h2>
-        <div class="space-y-4">
-          <div>
-            <h3 class="text-base font-semibold text-slate-200 mb-1">
-              Are my photos uploaded to any server?
-            </h3>
-            <p class="text-sm text-slate-400">
-              No. ImageTool adheres to a strict privacy-first architecture. All pixel manipulation and file encoding happen directly inside your web browser. No image data is sent across the internet.
-            </p>
-          </div>
-          <div>
-            <h3 class="text-base font-semibold text-slate-200 mb-1">
-              What is the maximum image resolution supported?
-            </h3>
-            <p class="text-sm text-slate-400">
-              You can process images up to 25 million pixels (for example, 5000 × 5000 pixels) and up to 50 MB in file size.
-            </p>
-          </div>
-          <div>
-            <h3 class="text-base font-semibold text-slate-200 mb-1">
-              Is ImageTool free to use?
-            </h3>
-            <p class="text-sm text-slate-400">
-              Yes, 100% free with no account creation, subscriptions, or watermarks required.
-            </p>
-          </div>
-        </div>
-      </section>
-    </article>
-  </main>
+  </ToolPageContent>
 </Layout>

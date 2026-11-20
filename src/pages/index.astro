@@ -1,11 +1,21 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { siteConfig } from '../site.config';
+
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: siteConfig.name,
+  url: Astro.site ? new URL('/', Astro.site).href : 'https://imagetool.example',
+  description: 'Resize, compress, convert, enhance, and upscale images with privacy-first tools that process your images directly in your browser.',
+};
 ---
 
 <Layout
   title="Free Online Image Tools"
   description="Resize, compress, convert, enhance, and upscale images with privacy-first tools that process your images directly in your browser."
   path="/"
+  jsonLd={websiteSchema}
 >
   <main class="max-w-4xl mx-auto px-4 py-12">
     <header class="text-center mb-12">
