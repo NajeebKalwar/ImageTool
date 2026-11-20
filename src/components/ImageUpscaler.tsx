@@ -361,10 +361,19 @@ export default function ImageUpscaler() {
         <div className="lg:col-span-7 space-y-4">
           {!source ? (
             <div
+              role="button"
+              tabIndex={0}
+              aria-label="Upload an image to upscale"
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onClick={() => fileInputRef.current?.click()}
-              className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-700 hover:border-indigo-500/80 bg-slate-900/50 hover:bg-slate-900/80 rounded-2xl cursor-pointer transition-colors text-center min-h-[380px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-700 hover:border-indigo-500/80 bg-slate-900/50 hover:bg-slate-900/80 rounded-2xl cursor-pointer transition-colors text-center min-h-[380px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <input
                 ref={fileInputRef}
@@ -414,9 +423,30 @@ export default function ImageUpscaler() {
                       />
                     </div>
 
-                    {/* Draggable Divider Handle */}
+                    {/* Draggable Divider Handle with Keyboard Accessibility */}
                     <div
-                      className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize shadow-[0_0_12px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center"
+                      role="slider"
+                      tabIndex={0}
+                      aria-label="Comparison split slider position"
+                      aria-valuemin={5}
+                      aria-valuemax={95}
+                      aria-valuenow={Math.round(sliderPosition)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setSliderPosition((p) => Math.max(5, p - 5));
+                        } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setSliderPosition((p) => Math.min(95, p + 5));
+                        } else if (e.key === 'Home') {
+                          e.preventDefault();
+                          setSliderPosition(5);
+                        } else if (e.key === 'End') {
+                          e.preventDefault();
+                          setSliderPosition(95);
+                        }
+                      }}
+                      className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize shadow-[0_0_12px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-indigo-400"
                       style={{ left: `${sliderPosition}%` }}
                       onMouseDown={handleMouseDown}
                       onTouchStart={handleTouchStart}
@@ -578,7 +608,7 @@ export default function ImageUpscaler() {
                   <span>Upscale Image ({selectedScale}x)</span>
                 </button>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3" aria-live="polite">
                   <div className="flex items-center justify-between text-xs text-slate-300">
                     <span className="font-semibold">
                       {tileProgress?.stage === 'downloading_weights'

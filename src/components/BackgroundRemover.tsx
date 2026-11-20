@@ -305,13 +305,22 @@ export default function BackgroundRemover() {
       {/* File Dropzone */}
       {!source ? (
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Upload an image to remove background"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
             if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
           }}
-          className="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-10 text-center transition-colors cursor-pointer bg-slate-950/40"
+          className="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-10 text-center transition-colors cursor-pointer bg-slate-950/40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
         >
           <input
             ref={fileInputRef}
