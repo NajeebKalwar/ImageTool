@@ -80,6 +80,10 @@ const jsonLdString = jsonLd ? JSON.stringify(jsonLd) : null;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://imagetool.example; connect-src 'self' blob: data: https://huggingface.co https://*.huggingface.co; worker-src 'self' blob:; child-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none';"
+    />
     <title>{fullTitle}</title>
     <meta name="description" content={pageDescription} />
     <link rel="canonical" href={canonicalUrl.href} />
@@ -104,7 +108,13 @@ const jsonLdString = jsonLd ? JSON.stringify(jsonLd) : null;
       <script type="application/ld+json" set:html={jsonLdString} />
     )}
   </head>
-  <body>
+  <body class="bg-slate-950 text-slate-100 antialiased min-h-screen">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-indigo-600 focus:text-white focus:rounded-lg focus:shadow-xl focus:outline-none focus:ring-2 focus:ring-white"
+    >
+      Skip to main content
+    </a>
     <slot />
   </body>
 </html>

@@ -12,7 +12,9 @@
     "astro": "astro",
     "verify:preview": "node scripts/verify-seo.mjs --expect preview",
     "verify:production": "node scripts/verify-seo.mjs --expect production",
+    "verify:privacy": "node scripts/verify-privacy.mjs --dist dist",
     "test:verify": "node --test scripts/verify-seo.test.mjs",
+    "test:privacy": "node --test scripts/verify-privacy.test.mjs",
     "test:integration": "node scripts/test-build-integration.mjs",
     "check": "astro check",
     "test:unit": "vitest run"

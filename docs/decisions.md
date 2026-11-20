@@ -171,3 +171,35 @@ This file is the source of truth for project-level decisions. Add a dated entry 
   - **Interactive Before/After Island (`src/components/ImageUpscaler.tsx`):** Provides a side-by-side interactive split slider allowing users to inspect fine details vs original pixels, live tile-by-tile progress bar, and multi-format exports.
 - **Options rejected:** Full-frame inference without tiling (crashes GPU VRAM on images > 1.5 MP); hard-boundary cropping without overlap (causes visible seam lines and discontinuous textures); main-thread tiling (freezes UI and drops frame rates); un-cancellable tasks (locks worker thread until timeout).
 - **Risk:** High-resolution tiled processing on CPU/WASM fallback may take longer on low-spec hardware. The tool displays explicit progress percentages, elapsed time, and memory warnings to keep the user informed.
+
+## ADR-017: Content Security Policy (CSP), cross-origin isolation, network boundary audit, and accessibility standards
+
+- **Status:** Accepted (Phase 7).
+- **Problem:** Public claims of "100% on-device privacy" cannot be trusted without strict technical guardrails, network boundary verification, and automated build audits. Third-party packages or future contributions could silently inject exfiltration beacons, tracking pixels, or remote form actions. Furthermore, high-performance WASM and WebGPU threads require specific cross-origin headers, and public tools must meet accessibility (a11y) standards.
+- **Principle:** Verify, do not trust. Privacy guarantees must be enforced by browser-level primitives (CSP, COEP, COOP) and verified continuously by an automated test suite on every build.
+- **Decision:**
+  - **Strict Content Security Policy (`public/_headers` & `src/layouts/Layout.astro`):**
+    - `default-src 'self'`
+    - `connect-src 'self' blob: data: https://huggingface.co https://*.huggingface.co` (only approved model weight CDNs allowed)
+    - `object-src 'none'`
+    - `base-uri 'self'`
+    - `form-action 'none'`
+    - `frame-ancestors 'none'`
+  - **Security & Cross-Origin Headers (`public/_headers`):**
+    - `X-Content-Type-Options: nosniff`
+    - `X-Frame-Options: DENY`
+    - `Referrer-Policy: strict-origin-when-cross-origin`
+    - `Cross-Origin-Opener-Policy: same-origin`
+    - `Cross-Origin-Embedder-Policy: credentialless`
+    - `Permissions-Policy: camera=(), microphone=(), geolocation=(), browsing-topics=()`
+  - **Automated Privacy Verifier (`scripts/verify-privacy.mjs` & `scripts/verify-privacy.test.mjs`):**
+    - Scans every generated HTML page and JS bundle in `dist/` to assert presence of valid CSP, lack of tracking/analytics domains, and no external form actions.
+    - Scans client source code in `src/lib`, `src/workers`, and `src/components` to assert no `sendBeacon`, `WebSocket`, or unauthorized `fetch` with body payloads.
+    - Integrated as `npm run verify:privacy` and `npm run test:privacy` in CI.
+  - **Accessibility (a11y) Standards:**
+    - Skip to main content link for keyboard navigation (`#main-content`).
+    - Interactive Before/After split slider implements W3C ARIA slider pattern (`role="slider"`, `tabIndex={0}`, `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, arrow key listeners).
+    - Screen-reader progress announcements with `aria-live="polite"`.
+    - Fully keyboard-accessible file dropzones with Enter/Space triggers.
+- **Options rejected:** Claiming privacy without automated build assertions; client-side CSP without HTTP `_headers`; blocking model weight downloads entirely (would eliminate browser AI).
+- **Risk:** New AI models must only be hosted on allowlisted CDNs (`huggingface.co`). Any newly added CDN must be explicitly reviewed for privacy compliance before updating the CSP connect-src policy.

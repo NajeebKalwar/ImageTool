@@ -46,10 +46,10 @@ Features such as sharing, cloud storage, accounts, batch queues, or collaboratio
 
 ## Verification checklist
 
-- [ ] Inspect network traffic for each image-processing workflow.
-- [ ] Confirm no image bytes or pixel buffers appear in outgoing request bodies.
-- [ ] Review every analytics, advertising, and error-reporting integration.
-- [ ] Document and allowlist model/runtime asset origins.
-- [ ] Test WebGPU and WASM paths.
-- [ ] Add automated tests for unexpected image upload requests.
-- [ ] Define and test production CSP before launch.
+- [x] Inspect network traffic for each image-processing workflow.
+- [x] Confirm no image bytes or pixel buffers appear in outgoing request bodies.
+- [x] Review every analytics, advertising, and error-reporting integration.
+- [x] Document and allowlist model/runtime asset origins.
+- [x] Test WebGPU and WASM paths.
+- [x] Add automated tests for unexpected image upload requests.
+- [x] Define and test production CSP before launch.

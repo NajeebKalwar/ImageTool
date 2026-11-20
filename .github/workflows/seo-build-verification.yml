@@ -50,6 +50,9 @@ jobs:
       - name: Verifier self-tests
         run: npm run test:verify
 
+      - name: Privacy verifier self-tests
+        run: npm run test:privacy
+
       - name: Real-build integration tests
         run: npm run test:integration
 
@@ -69,6 +72,7 @@ jobs:
           rm -rf dist
           npm run build
           npm run verify:production
+          npm run verify:privacy
 
   secret-scan:
     name: Full Git history secret scan
