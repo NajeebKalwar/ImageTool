@@ -1,4 +1,10 @@
 import type { ToolDefinition } from './schema';
+import {
+  BACKGROUND_REMOVAL_BENCHMARKS,
+  COMPRESSION_BENCHMARKS,
+  CONVERSION_BENCHMARKS,
+  UPSCALING_BENCHMARKS,
+} from './benchmarks';
 
 export const TOOLS: readonly ToolDefinition[] = [
   {
@@ -54,6 +60,7 @@ export const TOOLS: readonly ToolDefinition[] = [
         description: 'Lossless format with full alpha transparency support. Ideal for logos, icons, screenshots, and graphics with sharp text.',
       },
     ],
+    benchmarks: COMPRESSION_BENCHMARKS,
     faqHeading: 'Frequently Asked Questions',
     faqs: [
       {
@@ -127,6 +134,7 @@ export const TOOLS: readonly ToolDefinition[] = [
         description: 'Model weights are saved locally after first run, enabling instantaneous offline reloads.',
       },
     ],
+    benchmarks: BACKGROUND_REMOVAL_BENCHMARKS,
     faqHeading: 'Frequently Asked Questions',
     faqs: [
       {
@@ -204,6 +212,7 @@ export const TOOLS: readonly ToolDefinition[] = [
         description: 'Powered by Apache-2.0 and BSD licensed architectures suitable for personal and commercial use.',
       },
     ],
+    benchmarks: UPSCALING_BENCHMARKS,
     faqHeading: 'Frequently Asked Questions',
     faqs: [
       {
@@ -221,6 +230,142 @@ export const TOOLS: readonly ToolDefinition[] = [
       {
         question: 'Are there image size limits for upscaling?',
         answer: 'To protect your device memory, recommended input is up to 6–12 Megapixels for 4x scaling (output up to 64 Megapixels). The tool will warn you if an image is exceptionally large.',
+      },
+    ],
+  },
+  {
+    id: 'image-compressor',
+    slug: '/image-compressor',
+    title: 'Free Online Image Compressor',
+    description: 'Compress and shrink JPEG, PNG, and WebP images up to 85% directly in your browser. 100% private, fast, and completely free.',
+    headline: 'Free Online Image Compressor',
+    tagline: 'Reduce photo file size with visually lossless quality. On-device compression that never uploads your images.',
+    category: 'compress',
+    applicationCategory: 'MultimediaApplication',
+    operatingSystem: 'Any (Web Browser)',
+    howItWorks: {
+      summary: 'ImageTool compresses images directly on your computer using native Web Worker threads and modern image compression encoders.',
+      technicalDetails: 'Your image is decoded into raw pixel data and re-compressed using configurable quality quantization and entropy coding (WebP lossy/lossless or JPEG). All processing occurs in local RAM with zero data leaving your device.',
+      privacyGuarantee: '100% Local Processing (P-01 to P-04). Your sensitive photos, documents, and screenshots are never sent over the internet.',
+    },
+    stepsHeading: 'Step-by-Step: How to Compress an Image',
+    steps: [
+      {
+        title: 'Upload your image',
+        description: 'Drag and drop any JPEG, PNG, WebP, or AVIF image up to 50 MB.',
+      },
+      {
+        title: 'Choose compression level',
+        description: 'Select Balanced (80%), High Quality (90%), or Maximum Savings (55%), or adjust the custom quality slider.',
+      },
+      {
+        title: 'Choose format & optional downscaling',
+        description: 'Convert to WebP for maximum compression, or preserve JPEG/PNG. Optionally constrain maximum width.',
+      },
+      {
+        title: 'Click Compress Image Now',
+        description: 'The background Web Worker encodes your image in milliseconds.',
+      },
+      {
+        title: 'Download compressed image',
+        description: 'Save the optimized image directly to your downloads folder.',
+      },
+    ],
+    featuresHeading: 'Why Choose Local ImageTool Compression?',
+    features: [
+      {
+        title: 'Up to 85% File Size Reduction',
+        description: 'WebP compression produces files drastically smaller than JPEG with indistinguishable visual fidelity.',
+      },
+      {
+        title: 'Zero Cloud Upload Latency',
+        description: 'Compress instantly on your local CPU without waiting for multi-megabyte uploads over slow internet.',
+      },
+      {
+        title: 'Confidentiality Guaranteed',
+        description: 'Personal documents, confidential receipts, and family photos remain completely secure and private.',
+      },
+    ],
+    benchmarks: COMPRESSION_BENCHMARKS,
+    faqHeading: 'Frequently Asked Questions',
+    faqs: [
+      {
+        question: 'How much can I reduce my image size?',
+        answer: 'Typically, converting high-resolution JPEGs or PNGs to optimized WebP reduces file size by 65% to 85% with no visible loss in image quality.',
+      },
+      {
+        question: 'Are my images stored or analyzed?',
+        answer: 'Never. ImageTool runs 100% inside your browser memory. We have no backend image servers, no cloud queues, and zero tracking pixels.',
+      },
+      {
+        question: 'Does this compress animated GIFs?',
+        answer: 'ImageTool currently focuses on static photos and graphics (PNG, JPEG, WebP, AVIF) to achieve the highest possible compression ratios.',
+      },
+    ],
+  },
+  {
+    id: 'webp-converter',
+    slug: '/webp-converter',
+    title: 'Free Online WebP Converter',
+    description: 'Convert PNG and JPEG to WebP, or convert WebP to PNG and JPEG. Fast, local batch format conversion with zero cloud uploads.',
+    headline: 'Free Online WebP Converter',
+    tagline: 'Batch convert image formats locally in your web browser. Save web bandwidth with zero cloud processing.',
+    category: 'convert',
+    applicationCategory: 'MultimediaApplication',
+    operatingSystem: 'Any (Web Browser)',
+    howItWorks: {
+      summary: 'WebP is the modern image format of the web, delivering 25–35% smaller file sizes than JPEG while supporting full alpha transparency.',
+      technicalDetails: 'ImageTool leverages browser-native Canvas and Web Worker codecs to perform ultra-fast batch format transcoding directly on your CPU without server bottlenecks.',
+      privacyGuarantee: '100% Private (P-01 to P-04). Batch convert hundreds of images safely with zero bytes uploaded to third-party servers.',
+    },
+    stepsHeading: 'Step-by-Step: How to Convert to or from WebP',
+    steps: [
+      {
+        title: 'Choose conversion direction',
+        description: 'Select "Convert TO WebP" (from PNG/JPG) or "Convert FROM WebP" (to PNG/JPG).',
+      },
+      {
+        title: 'Select one or more images',
+        description: 'Drag and drop multiple files to convert them simultaneously in a batch queue.',
+      },
+      {
+        title: 'Adjust quality settings',
+        description: 'Fine-tune lossy WebP/JPEG quality (default 85%) or export lossless PNGs.',
+      },
+      {
+        title: 'Download individual files or all at once',
+        description: 'Download converted files with one click directly to your computer.',
+      },
+    ],
+    featuresHeading: 'WebP Converter Advantages',
+    features: [
+      {
+        title: 'Batch Conversion',
+        description: 'Convert multiple images simultaneously in background Web Worker threads.',
+      },
+      {
+        title: 'Bidirectional Support',
+        description: 'Convert to WebP for modern web performance, or convert legacy WebP images back to PNG and JPEG.',
+      },
+      {
+        title: 'Instant Local Speed',
+        description: 'No upload waiting, no file size limitations, and zero subscription paywalls.',
+      },
+    ],
+    benchmarks: CONVERSION_BENCHMARKS,
+    faqHeading: 'Frequently Asked Questions',
+    faqs: [
+      {
+        question: 'Why should I convert my images to WebP?',
+        answer: 'WebP is supported by all modern browsers (Chrome, Safari, Firefox, Edge). It provides superior compression compared to JPEG and supports transparency like PNG, significantly speeding up website loading times.',
+      },
+      {
+        question: 'Can I convert WebP files back to PNG or JPG?',
+        answer: 'Yes! Select "Convert FROM WebP" to convert any WebP image back to PNG (for transparency) or JPEG (for universal legacy compatibility).',
+      },
+      {
+        question: 'Is there a limit on how many files I can convert?',
+        answer: 'Because all processing happens on your own computer, there are no artificial limits or daily credits. You can convert as many images as you need.',
       },
     ],
   },

@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ToolPageContent from '../components/ToolPageContent.astro';
+import WebpConverter from '../components/WebpConverter';
+import { getToolBySlug } from '../content/tools';
+import { generateToolJsonLd } from '../lib/json-ld';
+
+const tool = getToolBySlug('/webp-converter');
+if (!tool) {
+  throw new Error('Tool definition not found for /webp-converter');
+}
+
+const jsonLd = generateToolJsonLd(tool, Astro.site!);
+---
+
+<Layout
+  title={tool.title}
+  description={tool.description}
+  path={tool.slug}
+  jsonLd={jsonLd}
+>
+  <ToolPageContent tool={tool}>
+    <WebpConverter client:load />
+  </ToolPageContent>
+</Layout>

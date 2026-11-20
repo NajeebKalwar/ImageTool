@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ToolPageContent from '../components/ToolPageContent.astro';
+import ImageCompressor from '../components/ImageCompressor';
+import { getToolBySlug } from '../content/tools';
+import { generateToolJsonLd } from '../lib/json-ld';
+
+const tool = getToolBySlug('/image-compressor');
+if (!tool) {
+  throw new Error('Tool definition not found for /image-compressor');
+}
+
+const jsonLd = generateToolJsonLd(tool, Astro.site!);
+---
+
+<Layout
+  title={tool.title}
+  description={tool.description}
+  path={tool.slug}
+  jsonLd={jsonLd}
+>
+  <ToolPageContent tool={tool}>
+    <ImageCompressor client:load />
+  </ToolPageContent>
+</Layout>
