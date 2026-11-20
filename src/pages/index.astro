@@ -28,7 +28,7 @@ const websiteSchema = {
       </p>
     </header>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       {/* Background Remover Card */}
       <a
         href="/background-remover"
@@ -52,6 +52,32 @@ const websiteSchema = {
         </p>
         <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400 mt-4 group-hover:translate-x-1 transition-transform">
           Open Background Remover &rarr;
+        </span>
+      </a>
+
+      {/* AI Image Upscaler Card */}
+      <a
+        href="/image-upscaler"
+        class="group block p-6 bg-slate-900 hover:bg-slate-800/80 rounded-xl border border-slate-800 hover:border-purple-500/50 transition-all shadow-lg hover:shadow-purple-500/10"
+      >
+        <div class="w-10 h-10 mb-4 bg-purple-950/80 border border-purple-700/60 rounded-lg flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div class="flex items-center gap-2 mb-2">
+          <h2 class="text-xl font-bold text-slate-100 group-hover:text-purple-300 transition-colors">
+            AI Image Upscaler
+          </h2>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-950 border border-purple-800 text-purple-400 font-semibold uppercase">
+            Tiled AI
+          </span>
+        </div>
+        <p class="text-sm text-slate-400 leading-relaxed">
+          Enlarge images 2x or 4x with zero-seam tiled super-resolution (Swin2SR &amp; Real-ESRGAN). 100% on-device inference.
+        </p>
+        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-400 mt-4 group-hover:translate-x-1 transition-transform">
+          Open Upscaler Tool &rarr;
         </span>
       </a>
 

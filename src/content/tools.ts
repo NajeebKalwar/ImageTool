@@ -147,6 +147,83 @@ export const TOOLS: readonly ToolDefinition[] = [
       },
     ],
   },
+  {
+    id: 'image-upscaler',
+    slug: '/image-upscaler',
+    title: 'Free Online AI Image Upscaler & Enhancer',
+    description: 'Enlarge and upscale images up to 4x using browser-native AI super-resolution with zero-seam tiled processing. 100% private, free, and runs on your device.',
+    headline: 'Free Online AI Image Upscaler & Enhancer',
+    tagline: 'Increase image resolution 2x or 4x without losing sharpness. On-device neural super-resolution that never uploads your photos.',
+    category: 'ai',
+    applicationCategory: 'MultimediaApplication',
+    operatingSystem: 'Any (Web Browser with WebGPU or WebAssembly)',
+    howItWorks: {
+      summary: 'ImageTool uses state-of-the-art vision models (Swin2SR Real-World and Real-ESRGAN Compact) to intelligently reconstruct missing pixels and photographic textures directly in your browser.',
+      technicalDetails: 'High-resolution images are partitioned into overlapping tiles processed with WebGPU acceleration. A 2D cosine-window seam blending algorithm recombines tiles into a single seamless output, avoiding GPU out-of-memory errors and visible grid lines.',
+      privacyGuarantee: '100% On-Device Inference (P-01 to P-04). Image pixels and intermediate neural tensors remain strictly inside your browser memory. No data is ever transmitted to cloud servers.',
+    },
+    stepsHeading: 'Step-by-Step: How to Upscale an Image with AI',
+    steps: [
+      {
+        title: 'Upload your image',
+        description: 'Drag and drop any PNG, JPEG, or WebP photo up to 50 MB.',
+      },
+      {
+        title: 'Choose scale factor',
+        description: 'Select 2x (200%) or 4x (400%) magnification depending on your output target.',
+      },
+      {
+        title: 'Select an AI model',
+        description: 'Choose Swin2SR for photo restoration or Real-ESRGAN Compact for graphics and high-speed scaling.',
+      },
+      {
+        title: 'Click Upscale Image',
+        description: 'The Web Worker executes tiled neural processing with live tile progress.',
+      },
+      {
+        title: 'Compare & Download',
+        description: 'Use the interactive split slider to inspect restored fine details before downloading your high-res image.',
+      },
+    ],
+    featuresHeading: 'Super-Resolution Features & Reliability',
+    features: [
+      {
+        title: 'Tiled Processing Engine',
+        description: 'Prevents browser GPU crashes on large inputs by processing tiles and feathering overlap seams.',
+      },
+      {
+        title: 'Instant Job Cancellation',
+        description: 'Cancel in-flight upscaling immediately without freezing the browser tab.',
+      },
+      {
+        title: 'Zero Seam Artifacts',
+        description: 'Cosine bell curve weight normalization eliminates visible tile boundaries and grid artifacts.',
+      },
+      {
+        title: 'Permissive Open-Source AI',
+        description: 'Powered by Apache-2.0 and BSD licensed architectures suitable for personal and commercial use.',
+      },
+    ],
+    faqHeading: 'Frequently Asked Questions',
+    faqs: [
+      {
+        question: 'How does browser-based AI upscaling work without cloud servers?',
+        answer: 'We execute quantized ONNX neural networks directly inside your browser using WebGPU for graphics compute or WASM. Your device handles all the computing.',
+      },
+      {
+        question: 'Why does the upscaler use tiled processing?',
+        answer: 'Upscaling a 2000×2000 photo to 8000×8000 requires processing hundreds of millions of neural activations. Tiled processing processes 256×256 chunks with overlap, allowing smooth rendering even on consumer laptops.',
+      },
+      {
+        question: 'Can I cancel an upscale if it takes too long?',
+        answer: 'Yes! You can click Cancel at any point. ImageTool aborts the Web Worker task cleanly and frees all allocated memory.',
+      },
+      {
+        question: 'Are there image size limits for upscaling?',
+        answer: 'To protect your device memory, recommended input is up to 6–12 Megapixels for 4x scaling (output up to 64 Megapixels). The tool will warn you if an image is exceptionally large.',
+      },
+    ],
+  },
 ] as const;
 
 export function getAllTools(): readonly ToolDefinition[] {
