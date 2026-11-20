@@ -116,3 +116,17 @@ This file is the source of truth for project-level decisions. Add a dated entry 
   - **Size cap:** `MAX_PIXELS = 25_000_000` is provisional and will be re-evaluated in Phase 6 after low-end device testing.
 - **Options rejected:** Comlink (adds a dependency and hides the message boundary behind proxy magic, making transfer semantics opaque); SharedArrayBuffer (requires COOP/COEP headers that complicate third-party script loading and are unnecessary for request/response workflows); untyped `postMessage` with ad-hoc validation.
 - **Risk:** The `WorkerLike` test abstraction does not cover real browser `Worker` lifecycle edge cases (e.g., worker script 404, CSP blocking `blob:` URLs, `import.meta.url` resolution across bundlers). The Worker Lab page provides a manual browser smoke test. Automated browser tests are deferred to a future phase.
+
+## ADR-013: Canvas-based image resize and format conversion in Web Worker
+
+- **Status:** Accepted (Phase 3).
+- **Problem:** Decoding large image files on the main thread (via `<img>` tags or `HTMLCanvasElement`) causes UI jank and frame drops, violating responsiveness goals. Furthermore, users require format conversion (WebP, PNG, JPEG) and arbitrary resizing with aspect ratio control without uploading images to a server.
+- **Principle:** Move decoding, resampling, and encoding entirely off the main thread into dedicated Web Workers; guarantee strict memory safety caps.
+- **Decision:**
+  - **Off-thread decoding:** The main thread transfers raw encoded file bytes (`ArrayBuffer`) directly to the Web Worker via `workerClient.resize(...)` or `workerClient.convert(...)`. The worker uses `createImageBitmap(blob)` inside the worker thread to decode the image asynchronously.
+  - **OffscreenCanvas processing:** The worker instantiates `OffscreenCanvas` with target dimensions computed via `calculateTargetDimensions()` (supporting `contain`, `cover`, `fill`, and `inside` aspect ratios). Bicubic high-quality smoothing is enabled by default (`imageSmoothingQuality = 'high'`).
+  - **Format conversion & compression:** Canvas exports via `canvas.convertToBlob({ type, quality })`, and the resulting `ArrayBuffer` is transferred zero-copy back to the main thread.
+  - **Memory & input limits:** Input files are capped at `MAX_FILE_BYTES = 50 * 1024 * 1024` (50 MB). Decoded and target pixel counts are capped at `MAX_PIXELS = 25_000_000`. Bitmap memory is explicitly freed via `bitmap.close()` in a `finally` block to prevent GPU/RAM memory leaks.
+  - **Engine abstraction for testing:** An `ImageEngine` interface decouples the pure protocol and dimension math from browser canvas globals, allowing full Node.js unit testing with Vitest.
+- **Options rejected:** Decoding on main thread via `HTMLImageElement` and passing raw RGBA buffer to worker (unnecessary main-thread memory spike); server-side processing (violates P-01 privacy guarantee); third-party WASM codecs (adds heavy bundle overhead when modern browsers natively support WebP/JPEG/PNG via OffscreenCanvas).
+- **Risk:** Older browsers without `OffscreenCanvas` or `createImageBitmap` in workers are unsupported. `OffscreenCanvas` memory limits vary by operating system and device GPU. Phase 6 will add tiling and low-end device benchmarks.

@@ -6,10 +6,37 @@
  */
 
 /**
- * Maximum image size accepted by our Phase 2 worker demonstration.
- * Measured as width × height in pixels.
+ * Maximum image size accepted by worker image processing.
+ * Measured as width × height in pixels (e.g. 5000 × 5000 = 25M pixels).
  */
 export const MAX_PIXELS = 25_000_000;
+
+/**
+ * Maximum encoded input file size accepted by the worker (50 MB).
+ * Prevents tab memory exhaustion on low-end devices.
+ */
+export const MAX_FILE_BYTES = 50 * 1024 * 1024;
+
+/**
+ * Supported output formats for Canvas export.
+ */
+export const SUPPORTED_FORMATS = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+] as const;
+
+export type SupportedFormat = (typeof SUPPORTED_FORMATS)[number];
+
+export type ResizeFit = 'contain' | 'cover' | 'fill' | 'inside';
+
+export interface ResizeOptions {
+  width?: number;
+  height?: number;
+  fit?: ResizeFit;
+  format?: SupportedFormat;
+  quality?: number; // 0.05 to 1.0 (for jpeg/webp)
+}
 
 /**
  * What the main thread asks the worker to do.
@@ -22,6 +49,17 @@ export type RequestBody =
       width: number;
       height: number;
       pixels: ArrayBuffer;
+    }
+  | {
+      type: 'resize';
+      imageBuffer: ArrayBuffer;
+      options: ResizeOptions;
+    }
+  | {
+      type: 'convert';
+      imageBuffer: ArrayBuffer;
+      targetFormat: SupportedFormat;
+      quality?: number;
     };
 
 /**
@@ -43,6 +81,14 @@ export type WorkerToMain =
       height: number;
       pixels: ArrayBuffer;
     }
+  | {
+      type: 'image_result';
+      id: number;
+      width: number;
+      height: number;
+      format: SupportedFormat;
+      data: ArrayBuffer;
+    }
   | { type: 'error'; id: number; message: string };
 
 /**
@@ -51,4 +97,6 @@ export type WorkerToMain =
 export type ReplyMap = {
   ping: Extract<WorkerToMain, { type: 'pong' }>;
   invert: Extract<WorkerToMain, { type: 'result' }>;
+  resize: Extract<WorkerToMain, { type: 'image_result' }>;
+  convert: Extract<WorkerToMain, { type: 'image_result' }>;
 };

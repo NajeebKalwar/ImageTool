@@ -258,4 +258,73 @@ describe('ImageWorkerClient', () => {
     expect(r1.id).toBe(id1);
     expect(r2.id).toBe(id2);
   });
+
+  // -----------------------------------------------------------------------
+  // 11 — resize() sends request with transferred buffer and resolves
+  // -----------------------------------------------------------------------
+  it('sends resize request and resolves with image_result', async () => {
+    const inputBuf = new ArrayBuffer(64);
+    const promise = client.resize(inputBuf, { width: 800, height: 600, format: 'image/webp' });
+
+    expect(worker.posted).toHaveLength(1);
+    const msg = worker.posted[0];
+    expect(msg.type).toBe('resize');
+    if (msg.type === 'resize') {
+      expect(msg.imageBuffer).toBe(inputBuf);
+      expect(msg.options.width).toBe(800);
+      expect(msg.options.format).toBe('image/webp');
+    }
+
+    const outputBuf = new ArrayBuffer(128);
+    worker.respond({
+      type: 'image_result',
+      id: msg.id,
+      width: 800,
+      height: 600,
+      format: 'image/webp',
+      data: outputBuf,
+    });
+
+    const result = await promise;
+    expect(result.type).toBe('image_result');
+    if (result.type === 'image_result') {
+      expect(result.width).toBe(800);
+      expect(result.format).toBe('image/webp');
+      expect(result.data).toBe(outputBuf);
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // 12 — convert() sends request with transferred buffer and resolves
+  // -----------------------------------------------------------------------
+  it('sends convert request and resolves with image_result', async () => {
+    const inputBuf = new ArrayBuffer(64);
+    const promise = client.convert(inputBuf, 'image/jpeg', 0.9);
+
+    expect(worker.posted).toHaveLength(1);
+    const msg = worker.posted[0];
+    expect(msg.type).toBe('convert');
+    if (msg.type === 'convert') {
+      expect(msg.imageBuffer).toBe(inputBuf);
+      expect(msg.targetFormat).toBe('image/jpeg');
+      expect(msg.quality).toBe(0.9);
+    }
+
+    const outputBuf = new ArrayBuffer(90);
+    worker.respond({
+      type: 'image_result',
+      id: msg.id,
+      width: 400,
+      height: 300,
+      format: 'image/jpeg',
+      data: outputBuf,
+    });
+
+    const result = await promise;
+    expect(result.type).toBe('image_result');
+    if (result.type === 'image_result') {
+      expect(result.format).toBe('image/jpeg');
+      expect(result.data).toBe(outputBuf);
+    }
+  });
 });

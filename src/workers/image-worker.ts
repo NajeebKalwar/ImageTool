@@ -1,15 +1,18 @@
 /**
  * Web Worker entrypoint for image processing.
  *
- * This file runs inside the worker thread. It delegates every incoming
- * message to the pure `handleMessage()` function (which is independently
- * unit-tested in Node) and posts the response back with transferable
- * buffers so large pixel arrays move without copying.
+ * This file runs inside the dedicated worker thread. It receives incoming
+ * messages, executes them via `handleMessage` using the browser's OffscreenCanvas
+ * and createImageBitmap capabilities, and posts the responses back using
+ * zero-copy ArrayBuffer transfers.
  */
 
+import { BrowserCanvasEngine } from '../lib/canvas-ops';
 import { handleMessage } from './message-handler';
 
-self.addEventListener('message', (event: MessageEvent) => {
-  const { response, transfer } = handleMessage(event.data);
+const engine = new BrowserCanvasEngine();
+
+self.addEventListener('message', async (event: MessageEvent) => {
+  const { response, transfer } = await handleMessage(event.data, engine);
   self.postMessage(response, { transfer });
 });

@@ -1,46 +1,58 @@
 import { describe, expect, it } from 'vitest';
-import { handleMessage, type HandlerResult } from './message-handler';
 import { MAX_PIXELS } from '../lib/worker-protocol';
+import { handleMessage, type HandlerResult } from './message-handler';
+import type { ImageEngine } from '../lib/canvas-ops';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Builds a minimal RGBA ArrayBuffer for given dimensions. */
 function makePixels(w: number, h: number): ArrayBuffer {
   return new ArrayBuffer(w * h * 4);
 }
 
-/** Shorthand: send a message and return the result. */
-function send(data: unknown): HandlerResult {
-  return handleMessage(data);
+async function send(data: unknown, engine?: ImageEngine): Promise<HandlerResult> {
+  return await handleMessage(data, engine);
 }
+
+// Mock engine for testing message-handler in Node
+const mockEngine: ImageEngine = {
+  async process(_buffer, options) {
+    const outBuf = new ArrayBuffer(32);
+    return {
+      data: outBuf,
+      width: options.width || 100,
+      height: options.height || 100,
+      format: options.format || 'image/png',
+    };
+  },
+};
 
 // ---------------------------------------------------------------------------
 // 1 — Structural validation
 // ---------------------------------------------------------------------------
 
 describe('structural validation', () => {
-  it('rejects null', () => {
-    const { response } = send(null);
+  it('rejects null', async () => {
+    const { response } = await send(null);
     expect(response.type).toBe('error');
     expect(response.id).toBe(-1);
   });
 
-  it('rejects a non-object primitive', () => {
-    const { response } = send('hello');
+  it('rejects a non-object primitive', async () => {
+    const { response } = await send('hello');
     expect(response.type).toBe('error');
     expect(response.id).toBe(-1);
   });
 
-  it('rejects a missing id', () => {
-    const { response } = send({ type: 'ping' });
+  it('rejects a missing id', async () => {
+    const { response } = await send({ type: 'ping' });
     expect(response.type).toBe('error');
     expect(response.id).toBe(-1);
   });
 
-  it('rejects a non-integer id', () => {
-    const { response } = send({ type: 'ping', id: 1.5 });
+  it('rejects a non-integer id', async () => {
+    const { response } = await send({ type: 'ping', id: 1.5 });
     expect(response.type).toBe('error');
     expect(response.id).toBe(-1);
   });
@@ -51,8 +63,8 @@ describe('structural validation', () => {
 // ---------------------------------------------------------------------------
 
 describe('ping', () => {
-  it('responds with pong and echoes the id', () => {
-    const { response, transfer } = send({ type: 'ping', id: 42 });
+  it('responds with pong and echoes the id', async () => {
+    const { response, transfer } = await send({ type: 'ping', id: 42 });
     expect(response).toEqual({ type: 'pong', id: 42 });
     expect(transfer).toEqual([]);
   });
@@ -63,8 +75,8 @@ describe('ping', () => {
 // ---------------------------------------------------------------------------
 
 describe('unknown type', () => {
-  it('returns an error for an unrecognised type', () => {
-    const { response } = send({ type: 'resize', id: 1 });
+  it('returns an error for an unrecognised type', async () => {
+    const { response } = await send({ type: 'rotate', id: 1 });
     expect(response.type).toBe('error');
     if (response.type === 'error') {
       expect(response.message).toContain('Unknown message type');
@@ -77,26 +89,34 @@ describe('unknown type', () => {
 // ---------------------------------------------------------------------------
 
 describe('invert — dimension validation', () => {
-  it('rejects missing width', () => {
-    const { response } = send({
-      type: 'invert', id: 1,
-      height: 1, pixels: makePixels(1, 1),
+  it('rejects missing width', async () => {
+    const { response } = await send({
+      type: 'invert',
+      id: 1,
+      height: 1,
+      pixels: makePixels(1, 1),
     });
     expect(response.type).toBe('error');
   });
 
-  it('rejects zero height', () => {
-    const { response } = send({
-      type: 'invert', id: 2,
-      width: 1, height: 0, pixels: makePixels(1, 1),
+  it('rejects zero height', async () => {
+    const { response } = await send({
+      type: 'invert',
+      id: 2,
+      width: 1,
+      height: 0,
+      pixels: makePixels(1, 1),
     });
     expect(response.type).toBe('error');
   });
 
-  it('rejects fractional width', () => {
-    const { response } = send({
-      type: 'invert', id: 3,
-      width: 1.5, height: 1, pixels: makePixels(1, 1),
+  it('rejects fractional width', async () => {
+    const { response } = await send({
+      type: 'invert',
+      id: 3,
+      width: 1.5,
+      height: 1,
+      pixels: makePixels(1, 1),
     });
     expect(response.type).toBe('error');
   });
@@ -107,14 +127,14 @@ describe('invert — dimension validation', () => {
 // ---------------------------------------------------------------------------
 
 describe('invert — size cap', () => {
-  it('rejects images exceeding MAX_PIXELS', () => {
-    // Use dimensions whose product just exceeds the cap without
-    // allocating huge memory. The handler checks before accessing bytes.
+  it('rejects images exceeding MAX_PIXELS', async () => {
     const big = MAX_PIXELS + 1;
-    const { response } = send({
-      type: 'invert', id: 4,
-      width: big, height: 1,
-      pixels: new ArrayBuffer(0), // handler rejects before reading
+    const { response } = await send({
+      type: 'invert',
+      id: 4,
+      width: big,
+      height: 1,
+      pixels: new ArrayBuffer(0),
     });
     expect(response.type).toBe('error');
     if (response.type === 'error') {
@@ -128,10 +148,12 @@ describe('invert — size cap', () => {
 // ---------------------------------------------------------------------------
 
 describe('invert — pixel buffer', () => {
-  it('rejects a non-ArrayBuffer pixels value', () => {
-    const { response } = send({
-      type: 'invert', id: 5,
-      width: 1, height: 1,
+  it('rejects a non-ArrayBuffer pixels value', async () => {
+    const { response } = await send({
+      type: 'invert',
+      id: 5,
+      width: 1,
+      height: 1,
       pixels: [0, 0, 0, 255],
     });
     expect(response.type).toBe('error');
@@ -140,11 +162,13 @@ describe('invert — pixel buffer', () => {
     }
   });
 
-  it('rejects a byte-length mismatch', () => {
-    const { response } = send({
-      type: 'invert', id: 6,
-      width: 2, height: 2,
-      pixels: new ArrayBuffer(4), // expects 16
+  it('rejects a byte-length mismatch', async () => {
+    const { response } = await send({
+      type: 'invert',
+      id: 6,
+      width: 2,
+      height: 2,
+      pixels: new ArrayBuffer(4),
     });
     expect(response.type).toBe('error');
     if (response.type === 'error') {
@@ -158,14 +182,16 @@ describe('invert — pixel buffer', () => {
 // ---------------------------------------------------------------------------
 
 describe('invert — happy path', () => {
-  it('inverts RGB channels and preserves alpha', () => {
+  it('inverts RGB channels and preserves alpha', async () => {
     const buf = new ArrayBuffer(4);
     const view = new Uint8ClampedArray(buf);
-    view.set([100, 150, 200, 255]); // R, G, B, A
+    view.set([100, 150, 200, 255]);
 
-    const { response, transfer } = send({
-      type: 'invert', id: 7,
-      width: 1, height: 1,
+    const { response, transfer } = await send({
+      type: 'invert',
+      id: 7,
+      width: 1,
+      height: 1,
       pixels: buf,
     });
 
@@ -176,46 +202,171 @@ describe('invert — happy path', () => {
       expect(response.height).toBe(1);
 
       const out = new Uint8ClampedArray(response.pixels);
-      expect(out[0]).toBe(155); // 255 - 100
-      expect(out[1]).toBe(105); // 255 - 150
-      expect(out[2]).toBe(55);  // 255 - 200
-      expect(out[3]).toBe(255); // alpha unchanged
+      expect(out[0]).toBe(155);
+      expect(out[1]).toBe(105);
+      expect(out[2]).toBe(55);
+      expect(out[3]).toBe(255);
     }
 
     expect(transfer).toHaveLength(1);
     expect(transfer[0]).toBe(buf);
   });
 
-  it('handles a 2×2 image correctly', () => {
+  it('handles a 2×2 image correctly', async () => {
     const buf = new ArrayBuffer(16);
     const view = new Uint8ClampedArray(buf);
-    // Fill all 4 pixels with known values
     view.set([
-      0, 0, 0, 255,       // black → white (alpha stays)
-      255, 255, 255, 128,  // white → black (alpha stays)
-      128, 64, 32, 0,      // mid tones
-      1, 254, 127, 200,    // near-edge values
+      0, 0, 0, 255,
+      255, 255, 255, 128,
+      128, 64, 32, 0,
+      1, 254, 127, 200,
     ]);
 
-    const { response } = send({
-      type: 'invert', id: 8,
-      width: 2, height: 2,
+    const { response } = await send({
+      type: 'invert',
+      id: 8,
+      width: 2,
+      height: 2,
       pixels: buf,
     });
 
     expect(response.type).toBe('result');
     if (response.type === 'result') {
       const out = new Uint8ClampedArray(response.pixels);
-      // pixel 0: black → white
       expect(out[0]).toBe(255);
       expect(out[1]).toBe(255);
       expect(out[2]).toBe(255);
-      expect(out[3]).toBe(255); // alpha unchanged
-      // pixel 1: white → black
+      expect(out[3]).toBe(255);
+
       expect(out[4]).toBe(0);
       expect(out[5]).toBe(0);
       expect(out[6]).toBe(0);
-      expect(out[7]).toBe(128); // alpha unchanged
+      expect(out[7]).toBe(128);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8 — Resize: message handling & validation
+// ---------------------------------------------------------------------------
+
+describe('resize — message handling', () => {
+  it('rejects missing or empty image buffer', async () => {
+    const { response } = await send({
+      type: 'resize',
+      id: 10,
+      imageBuffer: null,
+      options: { width: 100 },
+    });
+    expect(response.type).toBe('error');
+    if (response.type === 'error') {
+      expect(response.message).toContain('ArrayBuffer');
+    }
+  });
+
+  it('rejects invalid target dimensions', async () => {
+    const buf = new ArrayBuffer(10);
+    const { response } = await send({
+      type: 'resize',
+      id: 11,
+      imageBuffer: buf,
+      options: { width: -50 },
+    });
+    expect(response.type).toBe('error');
+    if (response.type === 'error') {
+      expect(response.message).toContain('positive integer');
+    }
+  });
+
+  it('rejects unsupported output format', async () => {
+    const buf = new ArrayBuffer(10);
+    const { response } = await send({
+      type: 'resize',
+      id: 12,
+      imageBuffer: buf,
+      options: { format: 'image/bmp' },
+    });
+    expect(response.type).toBe('error');
+    if (response.type === 'error') {
+      expect(response.message).toContain('Unsupported output format');
+    }
+  });
+
+  it('fails if engine is not provided', async () => {
+    const buf = new ArrayBuffer(10);
+    const { response } = await send({
+      type: 'resize',
+      id: 13,
+      imageBuffer: buf,
+      options: { width: 100, height: 100 },
+    });
+    expect(response.type).toBe('error');
+    if (response.type === 'error') {
+      expect(response.message).toContain('engine not available');
+    }
+  });
+
+  it('processes resize successfully with engine', async () => {
+    const buf = new ArrayBuffer(10);
+    const { response, transfer } = await send(
+      {
+        type: 'resize',
+        id: 14,
+        imageBuffer: buf,
+        options: { width: 400, height: 300, format: 'image/webp' },
+      },
+      mockEngine,
+    );
+
+    expect(response.type).toBe('image_result');
+    if (response.type === 'image_result') {
+      expect(response.id).toBe(14);
+      expect(response.width).toBe(400);
+      expect(response.height).toBe(300);
+      expect(response.format).toBe('image/webp');
+      expect(transfer).toHaveLength(1);
+      expect(transfer[0]).toBe(response.data);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9 — Convert: message handling & validation
+// ---------------------------------------------------------------------------
+
+describe('convert — message handling', () => {
+  it('rejects unsupported target format', async () => {
+    const buf = new ArrayBuffer(10);
+    const { response } = await send({
+      type: 'convert',
+      id: 20,
+      imageBuffer: buf,
+      targetFormat: 'image/tiff',
+    });
+    expect(response.type).toBe('error');
+    if (response.type === 'error') {
+      expect(response.message).toContain('Unsupported target format');
+    }
+  });
+
+  it('processes convert successfully with engine', async () => {
+    const buf = new ArrayBuffer(10);
+    const { response, transfer } = await send(
+      {
+        type: 'convert',
+        id: 21,
+        imageBuffer: buf,
+        targetFormat: 'image/jpeg',
+        quality: 0.8,
+      },
+      mockEngine,
+    );
+
+    expect(response.type).toBe('image_result');
+    if (response.type === 'image_result') {
+      expect(response.id).toBe(21);
+      expect(response.format).toBe('image/jpeg');
+      expect(transfer).toHaveLength(1);
     }
   });
 });

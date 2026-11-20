@@ -9,6 +9,8 @@ import type {
   MainToWorker,
   ReplyMap,
   RequestBody,
+  ResizeOptions,
+  SupportedFormat,
   WorkerToMain,
 } from './worker-protocol';
 
@@ -126,6 +128,35 @@ export class ImageWorkerClient {
     return this.request(
       { type: 'invert', width, height, pixels },
       [pixels],
+    );
+  }
+
+  /**
+   * Convenience: resize an encoded image buffer using the worker's OffscreenCanvas.
+   * Transfers the buffer to avoid copying memory across threads.
+   */
+  resize(
+    imageBuffer: ArrayBuffer,
+    options: ResizeOptions,
+  ): Promise<ReplyMap['resize']> {
+    return this.request(
+      { type: 'resize', imageBuffer, options },
+      [imageBuffer],
+    );
+  }
+
+  /**
+   * Convenience: convert an encoded image buffer to target format.
+   * Transfers the buffer to avoid copying memory across threads.
+   */
+  convert(
+    imageBuffer: ArrayBuffer,
+    targetFormat: SupportedFormat,
+    quality?: number,
+  ): Promise<ReplyMap['convert']> {
+    return this.request(
+      { type: 'convert', imageBuffer, targetFormat, quality },
+      [imageBuffer],
     );
   }
 
