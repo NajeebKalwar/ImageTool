@@ -1,0 +1,14 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://imagetool.example",
+      "https://*.pages.dev",
+      "http://localhost:*",
+      "http://127.0.0.1:*"
+    ],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["Content-Length", "ETag", "Content-Type", "Accept-Ranges"],
+    "MaxAgeSeconds": 86400
+  }
+]

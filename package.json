@@ -18,11 +18,13 @@
     "test:privacy": "node --test scripts/verify-privacy.test.mjs",
     "test:integration": "node scripts/test-build-integration.mjs",
     "check": "astro check",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "sync:models": "node scripts/sync-models.ts"
   },
   "dependencies": {
     "@astrojs/react": "^7.1.9",
     "@astrojs/sitemap": "^3.7.4",
+    "@huggingface/transformers": "^4.3.2",
     "@tailwindcss/vite": "^4.3.5",
     "astro": "^7.4.11",
     "idb-keyval": "^6.3.0",
