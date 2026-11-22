@@ -106,14 +106,22 @@ export function stageWasmFiles(outputBaseDir: string): FileManifestEntry[] {
   const wasmOutputDir = join(outputBaseDir, 'wasm');
   mkdirSync(wasmOutputDir, { recursive: true });
 
-  const ortDistDir = resolve(process.cwd(), 'node_modules/onnxruntime-web/dist');
-  if (!existsSync(ortDistDir)) {
-    console.warn(`[sync-models] onnxruntime-web dist directory not found at ${ortDistDir}`);
+  // Prefer nested onnxruntime-web used by @huggingface/transformers to guarantee binary-to-JS compatibility
+  const candidateDirs = [
+    resolve(process.cwd(), 'node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist'),
+    resolve(process.cwd(), 'node_modules/onnxruntime-web/dist'),
+  ];
+
+  const ortDistDir = candidateDirs.find((d) => existsSync(d));
+  if (!ortDistDir) {
+    console.warn(`[sync-models] onnxruntime-web dist directory not found`);
     return [];
   }
 
   const entries: FileManifestEntry[] = [];
-  const files = readdirSync(ortDistDir).filter((f) => f.endsWith('.wasm'));
+  const files = readdirSync(ortDistDir).filter(
+    (f) => f.startsWith('ort-wasm') && (f.endsWith('.wasm') || f.endsWith('.mjs')),
+  );
 
   for (const filename of files) {
     const srcPath = join(ortDistDir, filename);
@@ -132,6 +140,7 @@ export function stageWasmFiles(outputBaseDir: string): FileManifestEntry[] {
 
   const wasmManifest = {
     package: 'onnxruntime-web',
+    sourceDir: ortDistDir,
     generatedAt: new Date().toISOString(),
     files: entries,
   };
@@ -252,6 +261,7 @@ export function uploadDirectoryToR2(baseDir: string, bucketName: string = 'image
     if (relKey.endsWith('.json')) contentType = 'application/json';
     else if (relKey.endsWith('.wasm')) contentType = 'application/wasm';
     else if (relKey.endsWith('.onnx')) contentType = 'application/octet-stream';
+    else if (relKey.endsWith('.mjs') || relKey.endsWith('.js')) contentType = 'text/javascript';
 
     console.log(`[upload-r2] Putting ${bucketName}/${relKey} (${contentType})...`);
     try {

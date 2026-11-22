@@ -7,7 +7,6 @@ import {
 import { invertRgba } from '../lib/image-ops';
 import type { AiPipeline } from '../lib/ai/inference';
 import { getModelMetadata, isLicenseClean } from '../lib/ai/registry';
-import { handleAiLoad, handleAiUpscale, handleAiRemoveBackground } from './ai-handlers';
 import {
   MAX_PIXELS,
   type ResizeOptions,
@@ -27,6 +26,47 @@ export interface HandlerResult {
    */
   transfer: Transferable[];
 }
+
+/**
+ * Dynamic loaders for AI handlers to avoid bundling heavy AI weights
+ * during initial module analysis or non-AI page builds.
+ */
+const defaultAiLoader = (
+  id: number,
+  modelId: string,
+  postProgress?: (msg: WorkerToMain) => void,
+  isCancelled?: () => boolean,
+): Promise<HandlerResult> =>
+  import('./ai-handlers').then((m) => m.handleAiLoad(id, modelId, postProgress, isCancelled));
+
+const defaultAiUpscaler = (
+  id: number,
+  params: {
+    modelId: string;
+    scale: number;
+    width: number;
+    height: number;
+    pixels: ArrayBuffer;
+    tileSize?: number;
+    overlap?: number;
+  },
+  postProgress?: (msg: WorkerToMain) => void,
+  isCancelled?: () => boolean,
+): Promise<HandlerResult> =>
+  import('./ai-handlers').then((m) => m.handleAiUpscale(id, params, postProgress, isCancelled));
+
+const defaultAiBgRemover = (
+  id: number,
+  params: {
+    modelId: string;
+    width: number;
+    height: number;
+    pixels: ArrayBuffer;
+  },
+  postProgress?: (msg: WorkerToMain) => void,
+  isCancelled?: () => boolean,
+): Promise<HandlerResult> =>
+  import('./ai-handlers').then((m) => m.handleAiRemoveBackground(id, params, postProgress, isCancelled));
 
 /**
  * Active set of request IDs that have been requested to cancel.
@@ -75,7 +115,7 @@ export async function handleMessage(
     modelId: string,
     postProgress?: (msg: WorkerToMain) => void,
     isCancelled?: () => boolean,
-  ) => Promise<HandlerResult> = handleAiLoad,
+  ) => Promise<HandlerResult> = defaultAiLoader,
   aiUpscaler: (
     id: number,
     params: {
@@ -89,7 +129,7 @@ export async function handleMessage(
     },
     postProgress?: (msg: WorkerToMain) => void,
     isCancelled?: () => boolean,
-  ) => Promise<HandlerResult> = handleAiUpscale,
+  ) => Promise<HandlerResult> = defaultAiUpscaler,
   aiBgRemover: (
     id: number,
     params: {
@@ -100,7 +140,7 @@ export async function handleMessage(
     },
     postProgress?: (msg: WorkerToMain) => void,
     isCancelled?: () => boolean,
-  ) => Promise<HandlerResult> = handleAiRemoveBackground,
+  ) => Promise<HandlerResult> = defaultAiBgRemover,
 ): Promise<HandlerResult> {
   // 1. Validate the incoming message container.
   if (typeof data !== 'object' || data === null) {

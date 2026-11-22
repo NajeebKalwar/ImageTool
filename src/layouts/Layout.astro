@@ -83,7 +83,7 @@ const jsonLdString = jsonLd ? JSON.stringify(jsonLd) : null;
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://imagetool.example; connect-src 'self' blob: data: https://huggingface.co https://*.huggingface.co; worker-src 'self' blob:; child-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none';"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://imagetool.example; connect-src 'self' blob: data: https://huggingface.co https://*.huggingface.co; worker-src 'self' blob:; child-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none';"
     />
     <title>{fullTitle}</title>
     <meta name="description" content={pageDescription} />

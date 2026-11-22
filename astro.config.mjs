@@ -67,6 +67,18 @@ export default defineConfig({
 
   vite: {
     plugins: [tailwindcss()],
+    build: {
+      target: 'esnext',
+    },
+    worker: {
+      format: 'es',
+    },
+    ssr: {
+      external: ['@huggingface/transformers', 'onnxruntime-web'],
+    },
+    optimizeDeps: {
+      exclude: ['@huggingface/transformers', 'onnxruntime-web'],
+    },
     server: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',

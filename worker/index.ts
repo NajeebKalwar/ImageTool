@@ -78,11 +78,15 @@ export default {
       headers.set('Access-Control-Allow-Origin', '*');
       headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 
-      // Set fallback Content-Type if missing from metadata
-      if (!headers.has('content-type')) {
-        if (key.endsWith('.json')) headers.set('content-type', 'application/json');
-        else if (key.endsWith('.wasm')) headers.set('content-type', 'application/wasm');
-        else if (key.endsWith('.onnx')) headers.set('content-type', 'application/octet-stream');
+      // Explicitly set correct Content-Type for all AI model assets and WASM/JS loaders
+      if (key.endsWith('.mjs') || key.endsWith('.js')) {
+        headers.set('content-type', 'text/javascript; charset=utf-8');
+      } else if (key.endsWith('.wasm')) {
+        headers.set('content-type', 'application/wasm');
+      } else if (key.endsWith('.json')) {
+        headers.set('content-type', 'application/json; charset=utf-8');
+      } else if (key.endsWith('.onnx')) {
+        headers.set('content-type', 'application/octet-stream');
       }
 
       const isRange = request.headers.has('range') && 'range' in object;
