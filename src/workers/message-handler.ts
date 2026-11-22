@@ -6,8 +6,8 @@ import {
 } from '../lib/canvas-ops';
 import { invertRgba } from '../lib/image-ops';
 import type { AiPipeline } from '../lib/ai/inference';
-import { getModelMetadata, isLicenseClean } from '../lib/ai/model-registry';
-import { handleAiLoad } from './ai-handlers';
+import { getModelMetadata, isLicenseClean } from '../lib/ai/registry';
+import { handleAiLoad, handleAiUpscale, handleAiRemoveBackground } from './ai-handlers';
 import {
   MAX_PIXELS,
   type ResizeOptions,
@@ -76,6 +76,31 @@ export async function handleMessage(
     postProgress?: (msg: WorkerToMain) => void,
     isCancelled?: () => boolean,
   ) => Promise<HandlerResult> = handleAiLoad,
+  aiUpscaler: (
+    id: number,
+    params: {
+      modelId: string;
+      scale: number;
+      width: number;
+      height: number;
+      pixels: ArrayBuffer;
+      tileSize?: number;
+      overlap?: number;
+    },
+    postProgress?: (msg: WorkerToMain) => void,
+    isCancelled?: () => boolean,
+  ) => Promise<HandlerResult> = handleAiUpscale,
+  aiBgRemover: (
+    id: number,
+    params: {
+      modelId: string;
+      width: number;
+      height: number;
+      pixels: ArrayBuffer;
+    },
+    postProgress?: (msg: WorkerToMain) => void,
+    isCancelled?: () => boolean,
+  ) => Promise<HandlerResult> = handleAiRemoveBackground,
 ): Promise<HandlerResult> {
   // 1. Validate the incoming message container.
   if (typeof data !== 'object' || data === null) {
@@ -306,28 +331,53 @@ export async function handleMessage(
           return fail(id, `Expected ${expectedBytes} bytes of RGBA data, got ${pixels.byteLength}.`);
         }
 
-        if (!aiPipeline) {
-          return fail(id, 'AI inference pipeline not available.');
+        if (activeCancellations.has(id)) {
+          activeCancellations.delete(id);
+          return fail(id, 'Operation cancelled');
         }
 
-        const clampedPixels = new Uint8ClampedArray(pixels);
-        const aiRes = await aiPipeline.runBackgroundRemoval(clampedPixels, width, height, {
-          modelId,
-          preferredBackend: meta.preferredBackend,
-        });
+        if (aiPipeline) {
+          const clampedPixels = new Uint8ClampedArray(pixels);
+          try {
+            const aiRes = await aiPipeline.runBackgroundRemoval(clampedPixels, width, height, {
+              modelId,
+              preferredBackend: 'webgpu',
+            });
 
-        return {
-          response: {
-            type: 'ai_result',
+            activeCancellations.delete(id);
+
+            return {
+              response: {
+                type: 'ai_result',
+                id,
+                modelId,
+                width: aiRes.width,
+                height: aiRes.height,
+                pixels,
+                durationMs: aiRes.durationMs,
+              },
+              transfer: [pixels],
+            };
+          } catch (err) {
+            activeCancellations.delete(id);
+            return fail(id, err instanceof Error ? err.message : 'Background removal failed.');
+          }
+        }
+
+        // When aiPipeline is not injected, delegate to Transformers.js handleAiRemoveBackground
+        try {
+          const result = await aiBgRemover(
             id,
-            modelId,
-            width: aiRes.width,
-            height: aiRes.height,
-            pixels,
-            durationMs: aiRes.durationMs,
-          },
-          transfer: [pixels],
-        };
+            { modelId, width, height, pixels },
+            postProgress,
+            () => activeCancellations.has(id),
+          );
+          activeCancellations.delete(id);
+          return result;
+        } catch (err) {
+          activeCancellations.delete(id);
+          return fail(id, err instanceof Error ? err.message : 'Background removal failed.');
+        }
       }
 
       case 'ai_upscale': {
@@ -367,58 +417,79 @@ export async function handleMessage(
           return fail(id, `Expected ${expectedBytes} bytes of RGBA data, got ${pixels.byteLength}.`);
         }
 
-        if (!aiPipeline) {
-          return fail(id, 'AI inference pipeline not available.');
-        }
-
         if (activeCancellations.has(id)) {
           activeCancellations.delete(id);
           return fail(id, 'Operation cancelled');
         }
 
-        const clampedPixels = new Uint8ClampedArray(pixels);
+        if (aiPipeline) {
+          const clampedPixels = new Uint8ClampedArray(pixels);
+          try {
+            const upscaleRes = await aiPipeline.runUpscaling(
+              clampedPixels,
+              width,
+              height,
+              {
+                modelId,
+                scale,
+                tileSize: typeof tileSize === 'number' ? tileSize : undefined,
+                overlap: typeof overlap === 'number' ? overlap : undefined,
+                preferredBackend: 'webgpu',
+              },
+              (progress) => {
+                postProgress?.({
+                  type: 'ai_progress',
+                  id,
+                  currentTile: progress.currentTile,
+                  totalTiles: progress.totalTiles,
+                  percent: progress.percent,
+                  stage: progress.stage,
+                });
+              },
+              () => activeCancellations.has(id),
+            );
+
+            activeCancellations.delete(id);
+
+            const outBuffer = upscaleRes.pixels.buffer as ArrayBuffer;
+
+            return {
+              response: {
+                type: 'ai_upscale_result',
+                id,
+                modelId,
+                scale: upscaleRes.scale,
+                width: upscaleRes.width,
+                height: upscaleRes.height,
+                pixels: outBuffer,
+                durationMs: upscaleRes.durationMs,
+              },
+              transfer: [outBuffer],
+            };
+          } catch (err) {
+            activeCancellations.delete(id);
+            return fail(id, err instanceof Error ? err.message : 'Upscaling failed.');
+          }
+        }
+
+        // When aiPipeline is not injected, delegate to Transformers.js handleAiUpscale
         try {
-          const upscaleRes = await aiPipeline.runUpscaling(
-            clampedPixels,
-            width,
-            height,
+          const result = await aiUpscaler(
+            id,
             {
               modelId,
               scale,
+              width,
+              height,
+              pixels,
               tileSize: typeof tileSize === 'number' ? tileSize : undefined,
               overlap: typeof overlap === 'number' ? overlap : undefined,
-              preferredBackend: meta.preferredBackend,
             },
-            (progress) => {
-              postProgress?.({
-                type: 'ai_progress',
-                id,
-                currentTile: progress.currentTile,
-                totalTiles: progress.totalTiles,
-                percent: progress.percent,
-                stage: progress.stage,
-              });
-            },
+            postProgress,
             () => activeCancellations.has(id),
           );
-
           activeCancellations.delete(id);
-
-          const outBuffer = upscaleRes.pixels.buffer as ArrayBuffer;
-
-          return {
-            response: {
-              type: 'ai_upscale_result',
-              id,
-              modelId,
-              scale: upscaleRes.scale,
-              width: upscaleRes.width,
-              height: upscaleRes.height,
-              pixels: outBuffer,
-              durationMs: upscaleRes.durationMs,
-            },
-            transfer: [outBuffer],
-          };
+          return result;
         } catch (err) {
           activeCancellations.delete(id);
           return fail(id, err instanceof Error ? err.message : 'Upscaling failed.');

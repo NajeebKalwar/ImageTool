@@ -98,7 +98,7 @@ describe('MockAiPipeline', () => {
         width,
         height,
         {
-          modelId: 'realesrgan-compact',
+          modelId: 'swin2sr-x2',
           scale: 4,
           tileSize: 8,
           overlap: 2,

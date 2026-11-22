@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MAX_PIXELS } from '../lib/worker-protocol';
 import { handleMessage, type HandlerResult } from './message-handler';
 import type { ImageEngine } from '../lib/canvas-ops';
@@ -421,21 +421,40 @@ describe('ai operations — message handling', () => {
     }
   });
 
-  it('fails background removal when aiPipeline is not provided', async () => {
+  it('delegates background removal to aiBgRemover when aiPipeline is not provided', async () => {
     const pixels = makePixels(2, 2);
-    const { response } = await send({
-      type: 'ai_remove_background',
-      id: 32,
-      modelId: 'modnet',
-      width: 2,
-      height: 2,
-      pixels,
-    });
+    const mockRemover = vi.fn(async (id: number, params: any): Promise<HandlerResult> => ({
+      response: {
+        type: 'ai_result',
+        id,
+        modelId: params.modelId,
+        width: params.width,
+        height: params.height,
+        pixels: params.pixels,
+        durationMs: 15,
+      },
+      transfer: [params.pixels],
+    }));
 
-    expect(response.type).toBe('error');
-    if (response.type === 'error') {
-      expect(response.message).toContain('AI inference pipeline not available');
-    }
+    const { response } = await handleMessage(
+      {
+        type: 'ai_remove_background',
+        id: 32,
+        modelId: 'modnet',
+        width: 2,
+        height: 2,
+        pixels,
+      },
+      undefined,
+      undefined,
+      undefined,
+      mockAiLoader,
+      undefined,
+      mockRemover,
+    );
+
+    expect(response.type).toBe('ai_result');
+    expect(mockRemover).toHaveBeenCalledTimes(1);
   });
 
   it('executes background removal successfully with pipeline', async () => {

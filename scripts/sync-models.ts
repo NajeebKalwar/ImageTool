@@ -9,7 +9,8 @@
 
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, copyFileSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, relative } from 'node:path';
+import { execSync } from 'node:child_process';
 
 interface ModelSyncDef {
   id: string;
@@ -21,8 +22,8 @@ interface ModelSyncDef {
 export const SYNC_MODELS: readonly ModelSyncDef[] = [
   {
     id: 'swin2sr-x2',
-    repo: 'Xenova/swin2SR-classical-sr-x2-64',
-    revision: '71e28a83cfb61f5dc95bafdeebf2815167914f2b',
+    repo: 'Xenova/swin2SR-lightweight-x2-64',
+    revision: '92a21aca5713f20faf9a87590cdfbdce2e34112c',
     files: [
       'config.json',
       'preprocessor_config.json',
@@ -208,6 +209,66 @@ export async function downloadModels(outputBaseDir: string): Promise<ModelManife
 }
 
 /**
+ * Uploads staged model and WASM files to a Cloudflare R2 bucket via Wrangler.
+ */
+export function uploadDirectoryToR2(baseDir: string, bucketName: string = 'imagetool-models'): void {
+  console.log(`[upload-r2] Uploading staged files from ${baseDir} to bucket '${bucketName}'...`);
+
+  // First, set the CORS policy
+  const corsFile = resolve(process.cwd(), 'cloudflare/r2-cors.json');
+  if (existsSync(corsFile)) {
+    try {
+      console.log(`[upload-r2] Applying CORS policy from cloudflare/r2-cors.json...`);
+      execSync(`npx wrangler r2 bucket cors set ${bucketName} --file cloudflare/r2-cors.json`, {
+        stdio: 'inherit',
+      });
+      console.log(`  ✓ CORS policy updated.`);
+    } catch (err) {
+      console.warn(`  [WARN] Failed to automatically apply CORS rule:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  function getFilesRecursively(dir: string): string[] {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    let files: string[] = [];
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        files = files.concat(getFilesRecursively(fullPath));
+      } else if (entry.isFile()) {
+        files.push(fullPath);
+      }
+    }
+    return files;
+  }
+
+  const allFiles = getFilesRecursively(baseDir);
+  console.log(`[upload-r2] Found ${allFiles.length} files to upload.`);
+
+  for (const filePath of allFiles) {
+    const relKey = relative(baseDir, filePath).replace(/\\/g, '/');
+
+    let contentType = 'application/octet-stream';
+    if (relKey.endsWith('.json')) contentType = 'application/json';
+    else if (relKey.endsWith('.wasm')) contentType = 'application/wasm';
+    else if (relKey.endsWith('.onnx')) contentType = 'application/octet-stream';
+
+    console.log(`[upload-r2] Putting ${bucketName}/${relKey} (${contentType})...`);
+    try {
+      execSync(
+        `npx wrangler r2 object put ${bucketName}/${relKey} --file "${filePath}" --content-type ${contentType}`,
+        { stdio: 'inherit' },
+      );
+      console.log(`  ✓ Uploaded ${relKey}`);
+    } catch (err) {
+      console.error(`  [ERROR] Failed to upload ${relKey}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  console.log(`[upload-r2] Upload completed.`);
+}
+
+/**
  * Verifies that a remote R2 custom domain endpoint responds with 200 and proper CORS headers.
  */
 export async function verifyRemoteEndpoint(baseUrl: string): Promise<boolean> {
@@ -262,6 +323,7 @@ ImageTool Model Sync Utility
 
 Options:
   --download        Download required models from Hugging Face into .cache/models/
+  --upload-r2       Upload staged models and WASM files to Cloudflare R2 bucket (default: imagetool-models)
   --wasm-only       Stage only the ONNX Runtime WebAssembly files into .cache/models/wasm/
   --verify-remote   Probe a live R2 custom domain for HTTP 200 and CORS headers
                     Usage: --verify-remote https://models.yourdomain.com/
@@ -295,6 +357,13 @@ Options:
     console.log('[sync-models] Downloading models from Hugging Face...');
     await downloadModels(outDir);
     console.log('[sync-models] All models synchronized and verified successfully.');
+    process.exit(0);
+  }
+
+  if (args.includes('--upload-r2')) {
+    const idx = args.indexOf('--upload-r2');
+    const bucket = args[idx + 1] && !args[idx + 1].startsWith('-') ? args[idx + 1] : 'imagetool-models';
+    uploadDirectoryToR2(outDir, bucket);
     process.exit(0);
   }
 

@@ -5,7 +5,7 @@
  * for background removal and upscaling.
  */
 
-import { getModelMetadata, type ExecutionBackend } from './model-registry';
+import { getModelMetadata, type ExecutionBackend } from './registry';
 import { calculateTiles, extractTileRgba, stitchTiles, type ScaledTileResult } from './tiling';
 
 export interface PreprocessedTensor {
@@ -165,7 +165,7 @@ export class MockAiPipeline implements AiPipeline {
       mask,
       width,
       height,
-      backendUsed: options.preferredBackend || meta.preferredBackend || 'wasm',
+      backendUsed: options.preferredBackend || 'webgpu',
       durationMs: 42,
     };
   }
@@ -260,7 +260,7 @@ export class MockAiPipeline implements AiPipeline {
       width: outWidth,
       height: outHeight,
       scale,
-      backendUsed: options.preferredBackend || meta.preferredBackend || 'wasm',
+      backendUsed: options.preferredBackend || 'webgpu',
       durationMs: Date.now() - startTime,
     };
   }

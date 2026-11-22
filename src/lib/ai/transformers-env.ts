@@ -42,11 +42,28 @@ if (modelHost) {
 
 if (wasmHost) {
   // Self-hosted ONNX Runtime Web WebAssembly binaries on Cloudflare R2
-  const onnxBackend = env.backends.onnx as { wasm?: { wasmPaths?: string } };
+  const onnxBackend = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: string } };
   if (!onnxBackend.wasm) {
     onnxBackend.wasm = {};
   }
   onnxBackend.wasm.wasmPaths = wasmHost;
+}
+
+// Optimize WASM multi-threading when cross-origin isolated
+if (
+  typeof crossOriginIsolated !== 'undefined' &&
+  crossOriginIsolated &&
+  typeof SharedArrayBuffer !== 'undefined'
+) {
+  const threads =
+    typeof navigator !== 'undefined' && navigator.hardwareConcurrency
+      ? Math.max(1, Math.min(navigator.hardwareConcurrency - 1, 4))
+      : 2;
+  const onnxBackend = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: string } };
+  if (!onnxBackend.wasm) {
+    onnxBackend.wasm = {};
+  }
+  onnxBackend.wasm.numThreads = threads;
 }
 
 export { env };

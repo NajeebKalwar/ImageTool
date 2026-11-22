@@ -5,7 +5,7 @@
  * providers for local ONNX Runtime Web inference.
  */
 
-import type { ExecutionBackend } from './model-registry';
+import type { ExecutionBackend } from './registry';
 
 export interface DeviceCapabilities {
   hasWebGPU: boolean;

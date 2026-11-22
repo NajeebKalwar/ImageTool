@@ -16,6 +16,7 @@ export type PipelineType =
 
 export type ModelLicense = 'MIT' | 'Apache-2.0' | 'BSD-3-Clause' | 'BSD-2-Clause';
 
+export type ExecutionBackend = 'webgpu' | 'wasm';
 export type WebGpuDtype = 'fp16' | 'fp32' | 'q8';
 export type WasmDtype = 'q8' | 'q4' | 'fp32';
 
@@ -57,17 +58,17 @@ export const ALLOWED_LICENSES: readonly ModelLicense[] = [
 export const MODELS: readonly ModelMetadata[] = [
   {
     id: 'swin2sr-x2',
-    repo: 'Xenova/swin2SR-classical-sr-x2-64',
+    repo: 'Xenova/swin2SR-lightweight-x2-64',
     task: 'upscaling',
     pipeline: 'image-to-image',
     scale: 2,
     dtype: { webgpu: 'fp16', wasm: 'q8' },
-    approxDownloadBytes: { webgpu: 32_428_109, wasm: 21_471_413 },
+    approxDownloadBytes: { webgpu: 7_524_409, wasm: 7_082_844 },
     tile: { webgpu: 256, wasm: 128, overlap: 32 },
     license: 'Apache-2.0',
     licenseUrl: 'https://github.com/mv-lab/swin2sr/blob/main/LICENSE',
-    name: 'Swin2SR Classical (2x)',
-    description: 'Swin Transformer super-resolution optimized for 2x scale photo and artwork reconstruction.',
+    name: 'Swin2SR Lightweight (2x)',
+    description: 'Fast, lightweight super-resolution optimized for 2x photo and graphic scaling (<8 MB).',
   },
   {
     id: 'swin2sr-x4',
@@ -121,6 +122,20 @@ export function getModelMetadata(id: string): ModelMetadata | undefined {
  */
 export function getModelsByTask(task: ModelTask): ModelMetadata[] {
   return MODELS.filter((model) => model.task === task);
+}
+
+/**
+ * Find the most suitable model for a given task, matching optional scale or criteria.
+ */
+export function findModelForTask(
+  task: ModelTask,
+  options?: { scale?: number },
+): ModelMetadata | undefined {
+  const models = getModelsByTask(task);
+  if (options?.scale !== undefined) {
+    return models.find((m) => m.scale === options.scale) ?? models[0];
+  }
+  return models[0];
 }
 
 /**
