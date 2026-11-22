@@ -54,7 +54,7 @@ export const MODEL_REGISTRY: readonly ModelMetadata[] = [
     preferredBackend: 'webgpu',
     fallbackBackend: 'wasm',
     inputResolution: 1024,
-    url: 'https://huggingface.co/onnx-community/BiRefNet-general-lite/resolve/main/onnx/model_quantized.onnx',
+    url: 'https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/main/onnx/model_fp16.onnx',
     author: 'ZhengPeng7',
   },
   {
@@ -70,7 +70,7 @@ export const MODEL_REGISTRY: readonly ModelMetadata[] = [
     preferredBackend: 'webgpu',
     fallbackBackend: 'wasm',
     inputResolution: 512,
-    url: 'https://huggingface.co/onnx-community/modnet/resolve/main/onnx/model.onnx',
+    url: 'https://huggingface.co/Xenova/modnet/resolve/main/onnx/model_fp16.onnx',
     author: 'ZHKKKe',
   },
   {
@@ -86,7 +86,7 @@ export const MODEL_REGISTRY: readonly ModelMetadata[] = [
     preferredBackend: 'webgpu',
     fallbackBackend: 'wasm',
     inputResolution: 512,
-    url: 'https://huggingface.co/onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/onnx/model.onnx',
+    url: 'https://huggingface.co/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/onnx/model_fp16.onnx',
     author: 'mv-lab',
   },
   {

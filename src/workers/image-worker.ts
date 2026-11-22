@@ -13,6 +13,13 @@ import { handleMessage } from './message-handler';
 const engine = new BrowserCanvasEngine();
 
 self.addEventListener('message', async (event: MessageEvent) => {
-  const { response, transfer } = await handleMessage(event.data, engine);
+  const { response, transfer } = await handleMessage(
+    event.data,
+    engine,
+    undefined,
+    (progressMsg) => {
+      self.postMessage(progressMsg);
+    },
+  );
   self.postMessage(response, { transfer });
 });

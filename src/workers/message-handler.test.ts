@@ -12,12 +12,22 @@ function makePixels(w: number, h: number): ArrayBuffer {
   return new ArrayBuffer(w * h * 4);
 }
 
+const mockAiLoader = async (id: number, modelId: string): Promise<HandlerResult> => ({
+  response: {
+    type: 'ai_loaded',
+    id,
+    modelId,
+    backend: 'webgpu',
+  },
+  transfer: [],
+});
+
 async function send(
   data: unknown,
   engine?: ImageEngine,
   aiPipeline?: AiPipeline,
 ): Promise<HandlerResult> {
-  return await handleMessage(data, engine, aiPipeline);
+  return await handleMessage(data, engine, aiPipeline, undefined, mockAiLoader);
 }
 
 // Mock engine for testing message-handler in Node

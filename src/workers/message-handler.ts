@@ -7,6 +7,7 @@ import {
 import { invertRgba } from '../lib/image-ops';
 import type { AiPipeline } from '../lib/ai/inference';
 import { getModelMetadata, isLicenseClean } from '../lib/ai/model-registry';
+import { handleAiLoad } from './ai-handlers';
 import {
   MAX_PIXELS,
   type ResizeOptions,
@@ -69,6 +70,12 @@ export async function handleMessage(
   engine?: ImageEngine,
   aiPipeline?: AiPipeline,
   postProgress?: (msg: WorkerToMain) => void,
+  aiLoader: (
+    id: number,
+    modelId: string,
+    postProgress?: (msg: WorkerToMain) => void,
+    isCancelled?: () => boolean,
+  ) => Promise<HandlerResult> = handleAiLoad,
 ): Promise<HandlerResult> {
   // 1. Validate the incoming message container.
   if (typeof data !== 'object' || data === null) {
@@ -258,15 +265,16 @@ export async function handleMessage(
           return fail(id, `Model '${modelId}' does not have an approved commercial license.`);
         }
 
-        return {
-          response: {
-            type: 'ai_loaded',
+        try {
+          return await aiLoader(
             id,
             modelId,
-            backend: meta.preferredBackend,
-          },
-          transfer: [],
-        };
+            postProgress,
+            () => activeCancellations.has(id),
+          );
+        } catch (err) {
+          return fail(id, err instanceof Error ? err.message : 'Model loading failed.');
+        }
       }
 
       case 'ai_remove_background': {

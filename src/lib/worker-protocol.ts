@@ -132,10 +132,19 @@ export type WorkerToMain =
   | {
       type: 'ai_progress';
       id: number;
-      currentTile: number;
-      totalTiles: number;
+      stage:
+        | 'downloading'
+        | 'initializing'
+        | 'tiling'
+        | 'blending'
+        | 'encoding'
+        | 'preparing'
+        | 'complete';
       percent: number;
-      stage: 'preparing' | 'tiling' | 'blending' | 'complete';
+      currentTile?: number;
+      totalTiles?: number;
+      loadedBytes?: number;
+      totalBytes?: number;
     }
   | {
       type: 'ai_upscale_result';

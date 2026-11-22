@@ -14,6 +14,7 @@ import type {
   SupportedFormat,
   WorkerToMain,
 } from './worker-protocol';
+import { toAppError } from './ai/errors';
 
 // ---------------------------------------------------------------------------
 // WorkerLike — testable abstraction over the real Worker
@@ -189,8 +190,12 @@ export class ImageWorkerClient {
   /**
    * Convenience: load an AI model in the worker using WebGPU or WASM fallback.
    */
-  loadAiModel(modelId: string): Promise<ReplyMap['ai_load']> {
-    return this.request({ type: 'ai_load', modelId });
+  loadAiModel(
+    modelId: string,
+    signal?: AbortSignal,
+    onProgress?: ProgressCallback,
+  ): Promise<ReplyMap['ai_load']> {
+    return this.request({ type: 'ai_load', modelId }, [], signal, onProgress);
   }
 
   /**
@@ -322,7 +327,7 @@ export class ImageWorkerClient {
     if (!entry) return; // stale or unexpected message
 
     if (msg.type === 'error') {
-      entry.reject(new Error(msg.message));
+      entry.reject(toAppError(msg.message));
     } else {
       entry.resolve(msg as ReplyMap[keyof ReplyMap]);
     }

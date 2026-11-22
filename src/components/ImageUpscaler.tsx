@@ -200,8 +200,8 @@ export default function ImageUpscaler() {
         controller.signal,
         (progress) => {
           setTileProgress({
-            current: progress.currentTile,
-            total: progress.totalTiles,
+            current: progress.currentTile ?? 0,
+            total: progress.totalTiles ?? 1,
             percent: progress.percent,
             stage: progress.stage,
           });
