@@ -219,7 +219,7 @@ export function uploadDirectoryToR2(baseDir: string, bucketName: string = 'image
   if (existsSync(corsFile)) {
     try {
       console.log(`[upload-r2] Applying CORS policy from cloudflare/r2-cors.json...`);
-      execSync(`npx wrangler r2 bucket cors set ${bucketName} --file cloudflare/r2-cors.json`, {
+      execSync(`npx wrangler r2 bucket cors set ${bucketName} --file cloudflare/r2-cors.json -y`, {
         stdio: 'inherit',
       });
       console.log(`  ✓ CORS policy updated.`);
@@ -256,7 +256,7 @@ export function uploadDirectoryToR2(baseDir: string, bucketName: string = 'image
     console.log(`[upload-r2] Putting ${bucketName}/${relKey} (${contentType})...`);
     try {
       execSync(
-        `npx wrangler r2 object put ${bucketName}/${relKey} --file "${filePath}" --content-type ${contentType}`,
+        `npx wrangler r2 object put ${bucketName}/${relKey} --file "${filePath}" --content-type ${contentType} --remote`,
         { stdio: 'inherit' },
       );
       console.log(`  ✓ Uploaded ${relKey}`);

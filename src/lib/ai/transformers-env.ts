@@ -21,33 +21,35 @@ function normalizeHost(url: string | undefined): string | undefined {
   return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
 }
 
-// Read public environment variables exposed by Astro/Vite
-const modelHost = typeof import.meta !== 'undefined' && import.meta.env
-  ? normalizeHost(import.meta.env.PUBLIC_MODEL_HOST)
-  : undefined;
+// Determine active origin in browser / worker / fallback
+const activeOrigin =
+  typeof self !== 'undefined' && self.location && self.location.origin
+    ? self.location.origin
+    : typeof window !== 'undefined' && window.location && window.location.origin
+    ? window.location.origin
+    : 'https://imagetool.example';
 
-const wasmHost = typeof import.meta !== 'undefined' && import.meta.env
-  ? normalizeHost(import.meta.env.PUBLIC_WASM_HOST)
-  : undefined;
+// Read public environment variables exposed by Astro/Vite, falling back to same-origin /models/
+const modelHost =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PUBLIC_MODEL_HOST
+    ? normalizeHost(import.meta.env.PUBLIC_MODEL_HOST)
+    : undefined) ?? `${activeOrigin}/models/`;
 
-if (modelHost) {
-  // Use custom Cloudflare R2 domain: https://models.<domain>/<org>/<repo>/...
-  env.remoteHost = modelHost;
-  env.remotePathTemplate = '{model}/';
-} else {
-  // Development fallback to Hugging Face Hub if R2 host is not configured
-  env.remoteHost = 'https://huggingface.co/';
-  env.remotePathTemplate = '{model}/resolve/main/';
+const wasmHost =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PUBLIC_WASM_HOST
+    ? normalizeHost(import.meta.env.PUBLIC_WASM_HOST)
+    : undefined) ?? `${activeOrigin}/models/wasm/`;
+
+// Use custom Cloudflare R2 / same-origin routing: {origin}/models/{model}/{file}
+env.remoteHost = modelHost;
+env.remotePathTemplate = '{model}/';
+
+// Self-hosted ONNX Runtime Web WebAssembly binaries on Cloudflare R2 / same-origin /models/wasm/
+const onnxBackend = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: string } };
+if (!onnxBackend.wasm) {
+  onnxBackend.wasm = {};
 }
-
-if (wasmHost) {
-  // Self-hosted ONNX Runtime Web WebAssembly binaries on Cloudflare R2
-  const onnxBackend = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: string } };
-  if (!onnxBackend.wasm) {
-    onnxBackend.wasm = {};
-  }
-  onnxBackend.wasm.wasmPaths = wasmHost;
-}
+onnxBackend.wasm.wasmPaths = wasmHost;
 
 // Optimize WASM multi-threading when cross-origin isolated
 if (
