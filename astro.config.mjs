@@ -84,11 +84,23 @@ export default defineConfig({
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'credentialless',
       },
+      proxy: {
+        '/models': {
+          target: process.env.DEV_MODEL_TARGET || 'https://imagetool.najeebullahwahab.workers.dev',
+          changeOrigin: true,
+        },
+      },
     },
     preview: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'credentialless',
+      },
+      proxy: {
+        '/models': {
+          target: process.env.DEV_MODEL_TARGET || 'https://imagetool.najeebullahwahab.workers.dev',
+          changeOrigin: true,
+        },
       },
     },
   },
