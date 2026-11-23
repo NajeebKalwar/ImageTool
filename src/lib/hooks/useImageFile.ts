@@ -24,23 +24,52 @@ export function useImageFile(onImageLoaded: (info: LoadedImageInfo) => void) {
       }
 
       const previewUrl = URL.createObjectURL(file);
-      const img = new Image();
 
-      img.onload = () => {
-        onImageLoaded({
-          file,
-          previewUrl,
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-        });
-      };
-
-      img.onerror = () => {
-        URL.revokeObjectURL(previewUrl);
-        setError('Failed to decode image file. Please try another image.');
-      };
-
-      img.src = previewUrl;
+      // Prefer createImageBitmap with 'from-image' orientation to normalize EXIF tags
+      if (typeof createImageBitmap !== 'undefined') {
+        createImageBitmap(file, { imageOrientation: 'from-image' })
+          .then((bitmap) => {
+            onImageLoaded({
+              file,
+              previewUrl,
+              width: bitmap.width,
+              height: bitmap.height,
+            });
+            bitmap.close();
+          })
+          .catch(() => {
+            // Fallback to standard Image element decoding
+            const img = new Image();
+            img.onload = () => {
+              onImageLoaded({
+                file,
+                previewUrl,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+              });
+            };
+            img.onerror = () => {
+              URL.revokeObjectURL(previewUrl);
+              setError('Failed to decode image file. Please try another image.');
+            };
+            img.src = previewUrl;
+          });
+      } else {
+        const img = new Image();
+        img.onload = () => {
+          onImageLoaded({
+            file,
+            previewUrl,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+          });
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(previewUrl);
+          setError('Failed to decode image file. Please try another image.');
+        };
+        img.src = previewUrl;
+      }
     },
     [onImageLoaded],
   );

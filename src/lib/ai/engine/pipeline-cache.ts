@@ -36,6 +36,7 @@ const pipelineCache = new Map<string, LoadedPipelineEntry>();
 
 /**
  * Evicts the least-recently used pipeline if cache exceeds maximum capacity.
+ * Explicitly disposes the underlying ONNX/Transformers instance to release WebGPU and WASM resources.
  */
 function evictLruPipeline(): void {
   if (pipelineCache.size < MAX_CACHED_PIPELINES) return;
@@ -52,31 +53,60 @@ function evictLruPipeline(): void {
 
   if (oldestKey) {
     console.log(`[pipeline-cache] Evicting LRU model '${oldestKey}' from memory.`);
+    const entry = pipelineCache.get(oldestKey);
+    if (entry?.instance && typeof entry.instance.dispose === 'function') {
+      try {
+        entry.instance.dispose();
+      } catch (e) {
+        console.warn(`[pipeline-cache] Error disposing pipeline '${oldestKey}':`, e);
+      }
+    }
     pipelineCache.delete(oldestKey);
   }
 }
 
 /**
- * Clears all cached pipelines from memory (useful for testing or memory pressure).
+ * Clears all cached pipelines from memory and disposes underlying sessions.
  */
 export function clearPipelineCache(): void {
+  for (const [key, entry] of pipelineCache.entries()) {
+    if (entry?.instance && typeof entry.instance.dispose === 'function') {
+      try {
+        entry.instance.dispose();
+      } catch (e) {
+        console.warn(`[pipeline-cache] Error disposing pipeline '${key}':`, e);
+      }
+    }
+  }
   pipelineCache.clear();
 }
 
 /**
  * Retrieves an active Transformers.js pipeline for a model, creating and caching it if not present.
  * Automatically tries WebGPU, then retries with WASM if WebGPU initialization fails.
+ * Accepts optional `forceBackend` parameter to bypass WebGPU when recovering from inference errors.
  */
 export async function getPipeline(
   modelId: string,
   onProgress?: PipelineProgressCallback,
   isCancelled?: () => boolean,
+  forceBackend?: WorkerExecutionBackend,
 ): Promise<LoadedPipelineEntry> {
   // 1. Check in-memory cache
   const cached = pipelineCache.get(modelId);
-  if (cached) {
+  if (cached && (!forceBackend || cached.backend === forceBackend)) {
     cached.lastUsed = Date.now();
     return cached;
+  }
+
+  // If cached has different backend than forceBackend, evict it
+  if (cached && forceBackend && cached.backend !== forceBackend) {
+    if (cached.instance && typeof cached.instance.dispose === 'function') {
+      try {
+        cached.instance.dispose();
+      } catch {}
+    }
+    pipelineCache.delete(modelId);
   }
 
   // 2. Validate model in registry
@@ -107,7 +137,7 @@ export async function getPipeline(
   let usedBackend: WorkerExecutionBackend = preferredBackend;
 
   // 4. Attempt initialization on preferred backend (e.g. WebGPU)
-  if (preferredBackend === 'webgpu') {
+  if (preferredBackend === 'webgpu' && forceBackend !== 'wasm') {
     try {
       console.log(`[pipeline-cache] Initializing '${modelId}' on WebGPU (dtype: ${model.dtype.webgpu})...`);
       loadedInstance = await pipeline(model.pipeline as never, model.repo, {

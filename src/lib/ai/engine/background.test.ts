@@ -86,12 +86,85 @@ describe('Background Removal Engine', () => {
       expect(result[14]).toBe(100);
       expect(result[15]).toBe(255);
     });
+
+    it('correctly handles 4-channel RGBA masks', () => {
+      const width = 1;
+      const height = 1;
+      const source = new Uint8ClampedArray([255, 0, 0, 255]);
+      const maskRaw = new RawImage(new Uint8Array([0, 0, 0, 150]), width, height, 4);
+
+      const result = compositeAlphaMask(source, width, height, maskRaw);
+      expect(result[0]).toBe(255);
+      expect(result[3]).toBe(150);
+    });
+
+    it('correctly calculates luminance for 3-channel RGB masks', () => {
+      const width = 1;
+      const height = 1;
+      const source = new Uint8ClampedArray([0, 255, 0, 255]);
+      // White mask: [255, 255, 255] -> luminance ~255
+      const maskRaw = new RawImage(new Uint8Array([255, 255, 255]), width, height, 3);
+
+      const result = compositeAlphaMask(source, width, height, maskRaw);
+      expect(result[1]).toBe(255);
+      expect(result[3]).toBe(255);
+    });
   });
 
   describe('removeBackground', () => {
     it('rejects invalid dimensions', async () => {
       const pixels = new Uint8ClampedArray(16);
       await expect(removeBackground(pixels, 0, 10)).rejects.toThrow(UnsupportedImageError);
+    });
+
+    it('throws error when segmentation output is entirely transparent', async () => {
+      const width = 2;
+      const height = 2;
+      const pixels = new Uint8ClampedArray(width * height * 4).fill(255);
+      const allTransparentMask = new RawImage(new Uint8Array(width * height).fill(0), width, height, 1);
+
+      vi.mocked(getPipeline).mockResolvedValue({
+        instance: vi.fn(async () => [{ mask: allTransparentMask }]) as any,
+        modelId: 'modnet',
+        backend: 'wasm',
+        model: {} as any,
+        lastUsed: Date.now(),
+      });
+
+      await expect(
+        removeBackground(pixels, width, height, { modelId: 'modnet' }),
+      ).rejects.toThrow(/entirely transparent/);
+    });
+
+    it('falls back to WASM when primary pipeline inference fails', async () => {
+      const width = 2;
+      const height = 2;
+      const pixels = new Uint8ClampedArray(width * height * 4).fill(255);
+      const validMask = new RawImage(new Uint8Array(width * height).fill(200), width, height, 1);
+
+      const failingGpuPipeline = vi.fn().mockRejectedValue(new Error('GPU device lost'));
+      const workingWasmPipeline = vi.fn().mockResolvedValue([{ mask: validMask }]);
+
+      vi.mocked(getPipeline)
+        .mockResolvedValueOnce({
+          instance: failingGpuPipeline as any,
+          modelId: 'birefnet-lite',
+          backend: 'webgpu',
+          model: {} as any,
+          lastUsed: Date.now(),
+        })
+        .mockResolvedValueOnce({
+          instance: workingWasmPipeline as any,
+          modelId: 'birefnet-lite',
+          backend: 'wasm',
+          model: {} as any,
+          lastUsed: Date.now(),
+        });
+
+      const result = await removeBackground(pixels, width, height, { modelId: 'birefnet-lite' });
+      expect(result.pixels[3]).toBe(200);
+      expect(failingGpuPipeline).toHaveBeenCalledTimes(1);
+      expect(workingWasmPipeline).toHaveBeenCalledTimes(1);
     });
 
     it('runs inference and emits progress stages', async () => {

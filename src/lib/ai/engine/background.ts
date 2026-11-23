@@ -10,6 +10,7 @@ import { RawImage } from '@huggingface/transformers';
 import { getPipeline } from './pipeline-cache';
 import { getModelMetadata, findModelForTask } from '../registry';
 import { CancelledError, ModelLoadError, UnsupportedImageError } from '../errors';
+import { logAiExecution } from '../telemetry';
 
 export interface BackgroundRemovalOptions {
   modelId?: string;
@@ -60,8 +61,8 @@ export function extractMaskFromSegmentationOutput(output: unknown): RawImage {
 }
 
 /**
- * Composites the extracted alpha mask into the source RGBA image buffer.
- * Preserves RGB channels while updating the alpha channel.
+ * Composites the extracted alpha mask into the source RGBA image buffer in-place.
+ * Preserves RGB channels while updating the alpha channel, handling 1, 3, and 4 channel masks.
  */
 export function compositeAlphaMask(
   sourceRgba: Uint8ClampedArray,
@@ -70,29 +71,38 @@ export function compositeAlphaMask(
   mask: RawImage,
 ): Uint8ClampedArray {
   const pixelCount = width * height;
-  const result = new Uint8ClampedArray(pixelCount * 4);
   const maskData = mask.data;
   const maskChannels = mask.channels;
 
   for (let i = 0; i < pixelCount; i++) {
     const pxOffset = i * 4;
-    const maskOffset = i * maskChannels;
+    let maskA = 255;
 
-    result[pxOffset] = sourceRgba[pxOffset];         // R
-    result[pxOffset + 1] = sourceRgba[pxOffset + 1]; // G
-    result[pxOffset + 2] = sourceRgba[pxOffset + 2]; // B
+    if (maskChannels === 1) {
+      maskA = maskData[i];
+    } else if (maskChannels === 4) {
+      maskA = maskData[i * 4 + 3];
+    } else if (maskChannels === 3) {
+      maskA = Math.round(
+        0.299 * maskData[i * 3] +
+        0.587 * maskData[i * 3 + 1] +
+        0.114 * maskData[i * 3 + 2]
+      );
+    } else {
+      maskA = maskData[i * maskChannels];
+    }
 
     // Composite mask value with any pre-existing source alpha channel
     const srcA = sourceRgba[pxOffset + 3];
-    const maskA = maskData[maskOffset];
-    result[pxOffset + 3] = Math.round((srcA * maskA) / 255);
+    sourceRgba[pxOffset + 3] = Math.round((srcA * maskA) / 255);
   }
 
-  return result;
+  return sourceRgba;
 }
 
 /**
- * Executes on-device AI background removal.
+ * Executes on-device AI background removal with automatic WebGPU-to-WASM inference fallback,
+ * in-place memory optimization, and output quality validation.
  */
 export async function removeBackground(
   pixels: Uint8ClampedArray,
@@ -126,7 +136,7 @@ export async function removeBackground(
   }
 
   // 2. Acquire segmentation pipeline from cache or download
-  const { instance: pipeline } = await getPipeline(
+  const loadedPipeline = await getPipeline(
     model.id,
     (info) => {
       if (isCancelled?.()) return;
@@ -149,6 +159,9 @@ export async function removeBackground(
     isCancelled,
   );
 
+  let activePipeline = loadedPipeline.instance;
+  let activeBackend = loadedPipeline.backend;
+
   if (isCancelled?.()) {
     throw new CancelledError();
   }
@@ -161,8 +174,28 @@ export async function removeBackground(
   // 3. Construct RawImage input for segmentation pipeline
   const inputRaw = new RawImage(pixels, width, height, 4);
 
-  // 4. Run inference
-  const output = await pipeline(inputRaw);
+  // 4. Run inference with automatic runtime fallback to WASM if WebGPU fails during execution
+  let output: unknown;
+  let fallbackOccurred = false;
+  try {
+    output = await activePipeline(inputRaw);
+  } catch (inferenceErr) {
+    if (isCancelled?.()) throw new CancelledError();
+    console.warn(
+      `[background] Inference failed on '${activeBackend}', falling back to WASM...`,
+      inferenceErr,
+    );
+    fallbackOccurred = true;
+    const fallbackEntry = await getPipeline(
+      model.id,
+      undefined,
+      isCancelled,
+      'wasm',
+    );
+    activePipeline = fallbackEntry.instance;
+    activeBackend = 'wasm';
+    output = await activePipeline(inputRaw);
+  }
 
   if (isCancelled?.()) {
     throw new CancelledError();
@@ -181,8 +214,32 @@ export async function removeBackground(
     mask = await mask.resize(width, height);
   }
 
-  // 6. Composite alpha mask with source RGBA pixels
+  // 6. Composite alpha mask with source RGBA pixels in-place
   const finalPixels = compositeAlphaMask(pixels, width, height, mask);
+
+  // 7. Output quality verification: guard against all-transparent failure
+  const pixelCount = width * height;
+  let transparentCount = 0;
+  for (let i = 0; i < pixelCount; i++) {
+    if (finalPixels[i * 4 + 3] < 10) transparentCount++;
+  }
+  if (transparentCount === pixelCount) {
+    throw new Error('Background removal failed: output was entirely transparent (no subject detected).');
+  }
+
+  const durationMs = performance.now() - startTime;
+
+  logAiExecution({
+    task: 'background-removal',
+    modelId: model.id,
+    backend: activeBackend,
+    width,
+    height,
+    megapixels: (width * height) / 1_000_000,
+    durationMs,
+    success: true,
+    fallbackTriggered: fallbackOccurred,
+  });
 
   onProgress?.({
     stage: 'complete',
@@ -193,6 +250,6 @@ export async function removeBackground(
     width,
     height,
     pixels: finalPixels,
-    durationMs: performance.now() - startTime,
+    durationMs,
   };
 }

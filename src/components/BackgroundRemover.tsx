@@ -5,6 +5,7 @@ import { useImageFile } from '../lib/hooks/useImageFile';
 import { detectDeviceCapabilities, type DeviceCapabilities } from '../lib/ai/device';
 import { isModelCachedInBrowser } from '../lib/ai/browser-cache';
 import { MODELS } from '../lib/ai/registry';
+import { detectDeviceTier, TIER_LIMITS } from '../lib/ai/memory-policy';
 
 function formatBytes(bytes?: number): string {
   if (!bytes || bytes <= 0) return '';
@@ -72,6 +73,18 @@ export default function BackgroundRemover() {
     if (!source || isWorking || isProcessingRef.current) return;
     isProcessingRef.current = true;
 
+    // Pre-flight memory verification based on device tier
+    const tier = detectDeviceTier();
+    const limits = TIER_LIMITS[tier];
+    const totalPixels = source.width * source.height;
+    if (totalPixels > limits.maxCanvasPixels) {
+      setError(
+        `Image resolution (${source.width}×${source.height} = ${(totalPixels / 1e6).toFixed(1)} MP) exceeds maximum safe limit for this device (${(limits.maxCanvasPixels / 1e6).toFixed(1)} MP). Please upload a smaller image.`,
+      );
+      isProcessingRef.current = false;
+      return;
+    }
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
@@ -99,24 +112,54 @@ export default function BackgroundRemover() {
 
       ctx.drawImage(img, 0, 0);
       const imageData = ctx.getImageData(0, 0, source.width, source.height);
-      const pixelBuffer = imageData.data.buffer.slice(0);
+      const pixelBuffer = imageData.data.buffer; // Zero-copy transfer without slice
 
-      // Execute AI background removal in Web Worker with progress and cancel support
-      const res = await workerClient.removeBackground(
-        selectedModelId,
-        source.width,
-        source.height,
-        pixelBuffer,
-        controller.signal,
-        (p) => {
-          setProgress({
-            stage: p.stage,
-            percent: p.percent,
-            loadedBytes: p.loadedBytes,
-            totalBytes: p.totalBytes,
-          });
-        },
-      );
+      let res;
+      try {
+        // Execute AI background removal in Web Worker with progress and cancel support
+        res = await workerClient.removeBackground(
+          selectedModelId,
+          source.width,
+          source.height,
+          pixelBuffer,
+          controller.signal,
+          (p) => {
+            setProgress({
+              stage: p.stage,
+              percent: p.percent,
+              loadedBytes: p.loadedBytes,
+              totalBytes: p.totalBytes,
+            });
+          },
+        );
+      } catch (workerErr) {
+        // Graceful degradation: if BiRefNet-lite fails and not user-aborted, auto-fallback to MODNet
+        if (selectedModelId === 'birefnet-lite' && !controller.signal.aborted) {
+          console.warn('[BackgroundRemover] BiRefNet-lite failed. Gracefully falling back to MODNet...', workerErr);
+          setModelId('modnet');
+          setProgress({ stage: 'initializing', percent: 20 });
+
+          // Re-extract fresh pixel buffer from scratch canvas for fallback retry
+          const retryImageData = ctx.getImageData(0, 0, source.width, source.height);
+          res = await workerClient.removeBackground(
+            'modnet',
+            source.width,
+            source.height,
+            retryImageData.data.buffer,
+            controller.signal,
+            (p) => {
+              setProgress({
+                stage: p.stage,
+                percent: p.percent,
+                loadedBytes: p.loadedBytes,
+                totalBytes: p.totalBytes,
+              });
+            },
+          );
+        } else {
+          throw workerErr;
+        }
+      }
 
       // Composite output pixels to canvas and export to PNG Blob
       const outCanvas = document.createElement('canvas');
