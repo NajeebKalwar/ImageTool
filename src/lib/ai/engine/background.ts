@@ -16,8 +16,10 @@ export interface BackgroundRemovalOptions {
 }
 
 export interface BackgroundProgressInfo {
-  stage: 'initializing' | 'segmenting' | 'compositing' | 'complete';
+  stage: 'downloading' | 'initializing' | 'segmenting' | 'compositing' | 'complete';
   percent: number;
+  loadedBytes?: number;
+  totalBytes?: number;
 }
 
 export interface BackgroundRemovalResult {
@@ -132,8 +134,10 @@ export async function removeBackground(
         ? Math.round(info.progress)
         : info.status === 'done' ? 100 : 0;
       onProgress?.({
-        stage: 'initializing',
+        stage: info.status === 'progress' ? 'downloading' : 'initializing',
         percent,
+        loadedBytes: info.loaded,
+        totalBytes: info.total,
       });
     },
     isCancelled,

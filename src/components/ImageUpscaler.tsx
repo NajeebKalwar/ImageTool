@@ -9,6 +9,11 @@ import { isModelCachedInBrowser } from '../lib/ai/browser-cache';
 import { MODELS } from '../lib/ai/registry';
 import type { SupportedFormat } from '../lib/worker-protocol';
 
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function ImageUpscaler() {
   const {
     status,
@@ -34,6 +39,7 @@ export default function ImageUpscaler() {
 
   const workerClient = useWorkerClient();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isProcessingRef = useRef<boolean>(false);
 
   const { dropZoneProps, fileInputProps, openFileDialog, error: fileError } = useImageFile(
     (info) => {
@@ -73,16 +79,18 @@ export default function ImageUpscaler() {
     : null;
 
   const handleStartUpscaling = async () => {
-    if (!source || !memoryEstimation) return;
+    if (!source || !memoryEstimation || isWorking || isProcessingRef.current) return;
+    isProcessingRef.current = true;
 
     if (!memoryEstimation.isSafe) {
       setError(memoryEstimation.rejectionReason || 'Image exceeds safe memory limits.');
+      isProcessingRef.current = false;
       return;
     }
 
     setStatus('processing');
     setError(null);
-    setProgress({ stage: 'preparing', percent: 0 });
+    setProgress({ stage: 'preparing', percent: 0, loadedBytes: 0, totalBytes: 0 });
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -118,6 +126,8 @@ export default function ImageUpscaler() {
             percent: p.percent,
             currentTile: p.currentTile,
             totalTiles: p.totalTiles,
+            loadedBytes: p.loadedBytes,
+            totalBytes: p.totalBytes,
           });
         },
       );
@@ -153,6 +163,9 @@ export default function ImageUpscaler() {
       } else {
         setError(err instanceof Error ? err.message : 'Upscaling failed.');
       }
+    } finally {
+      isProcessingRef.current = false;
+      abortControllerRef.current = null;
     }
   };
 
@@ -396,22 +409,30 @@ export default function ImageUpscaler() {
                     <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                     <div className="text-center space-y-1">
                       <p className="text-sm font-semibold text-slate-100">
-                        {progress.stage === 'tiling'
-                          ? `Processing Tile ${progress.currentTile ?? 0} of ${progress.totalTiles ?? 1}…`
-                          : progress.stage === 'blending'
-                            ? 'Stitching tiles and blending seams…'
-                            : 'Preparing AI model weights…'}
+                        {progress.stage === 'downloading'
+                          ? 'Downloading AI model weights…'
+                          : progress.stage === 'tiling'
+                            ? `Processing Tile ${progress.currentTile ?? 0} of ${progress.totalTiles ?? 1}…`
+                            : progress.stage === 'blending'
+                              ? 'Stitching tiles and blending seams…'
+                              : 'Preparing AI model weights…'}
                       </p>
-                      <p className="text-xs text-indigo-400 font-mono">
-                        {progress.percent}% complete
-                      </p>
+                      {progress.stage === 'downloading' && progress.loadedBytes && progress.totalBytes ? (
+                        <p className="text-xs text-slate-400 font-mono">
+                          {formatBytes(progress.loadedBytes)} / {formatBytes(progress.totalBytes)} ({progress.percent}%)
+                        </p>
+                      ) : (
+                        <p className="text-xs text-indigo-400 font-mono">
+                          {progress.percent > 0 ? `${progress.percent}% complete` : 'Please wait…'}
+                        </p>
+                      )}
                     </div>
 
                     {/* Progress Bar */}
                     <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-indigo-500 transition-all duration-200"
-                        style={{ width: `${progress.percent}%` }}
+                        style={{ width: `${Math.min(100, Math.max(progress.stage === 'downloading' ? progress.percent : 10, progress.percent))}%` }}
                       />
                     </div>
 
@@ -435,12 +456,16 @@ export default function ImageUpscaler() {
                 type="button"
                 onClick={handleStartUpscaling}
                 disabled={isWorking || !memoryEstimation?.isSafe}
-                className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {isWorking ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Upscaling…</span>
+                    <span>
+                      {progress.stage === 'downloading'
+                        ? `Downloading Model (${progress.percent}%)…`
+                        : `Upscaling (${scale}×)…`}
+                    </span>
                   </>
                 ) : (
                   <span>Upscale Image ({scale}×)</span>

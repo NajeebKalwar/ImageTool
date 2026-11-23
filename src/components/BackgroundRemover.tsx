@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useBackgroundRemoverStore, type PreviewBgMode } from '../lib/stores/bgremover.store';
 import { useWorkerClient } from '../lib/hooks/useWorkerClient';
 import { useImageFile } from '../lib/hooks/useImageFile';
 import { detectDeviceCapabilities, type DeviceCapabilities } from '../lib/ai/device';
 import { isModelCachedInBrowser } from '../lib/ai/browser-cache';
 import { MODELS } from '../lib/ai/registry';
+
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function BackgroundRemover() {
   const {
@@ -30,6 +35,8 @@ export default function BackgroundRemover() {
   const [deviceCaps, setDeviceCaps] = useState<DeviceCapabilities | null>(null);
   const [isCached, setIsCached] = useState<boolean>(false);
   const workerClient = useWorkerClient();
+  const isProcessingRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const { dropZoneProps, fileInputProps, openFileDialog, error: fileError } = useImageFile(
     (info) => {
@@ -62,11 +69,15 @@ export default function BackgroundRemover() {
   }, [selectedModelId]);
 
   const handleRemoveBackground = async () => {
-    if (!source) return;
+    if (!source || isWorking || isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setStatus('processing');
     setError(null);
-    setProgress({ stage: 'initializing', percent: 0 });
+    setProgress({ stage: 'initializing', percent: 0, loadedBytes: 0, totalBytes: 0 });
 
     try {
       // Decode image pixels on scratch canvas
@@ -84,12 +95,21 @@ export default function BackgroundRemover() {
       const imageData = ctx.getImageData(0, 0, source.width, source.height);
       const pixelBuffer = imageData.data.buffer.slice(0);
 
-      // Execute AI background removal in Web Worker
+      // Execute AI background removal in Web Worker with progress and cancel support
       const res = await workerClient.removeBackground(
         selectedModelId,
         source.width,
         source.height,
         pixelBuffer,
+        controller.signal,
+        (p) => {
+          setProgress({
+            stage: p.stage,
+            percent: p.percent,
+            loadedBytes: p.loadedBytes,
+            totalBytes: p.totalBytes,
+          });
+        },
       );
 
       // Composite output pixels to canvas and export to PNG Blob
@@ -121,8 +141,25 @@ export default function BackgroundRemover() {
       });
       setIsCached(true);
     } catch (err) {
+      if (err instanceof Error && err.message === 'Operation cancelled') {
+        setStatus('idle');
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Background removal failed.');
+    } finally {
+      isProcessingRef.current = false;
+      abortControllerRef.current = null;
     }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    isProcessingRef.current = false;
+    setStatus('idle');
+    setProgress({ stage: 'idle', percent: 0 });
   };
 
   const handleDownload = () => {
@@ -336,13 +373,48 @@ export default function BackgroundRemover() {
                     className="max-w-full max-h-full object-contain"
                   />
                 ) : isWorking ? (
-                  <div className="text-center p-6 space-y-3">
-                    <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                    <p className="text-xs text-indigo-300 font-medium">
-                      {progress.stage === 'initializing'
-                        ? 'Loading model weights…'
-                        : 'Removing background…'}
-                    </p>
+                  <div className="w-full h-full flex flex-col items-center justify-center p-6 space-y-4 bg-slate-950/80 backdrop-blur-sm">
+                    <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="text-center space-y-1 max-w-[280px]">
+                      <p className="text-sm font-semibold text-slate-100">
+                        {progress.stage === 'downloading'
+                          ? 'Downloading AI model weights…'
+                          : progress.stage === 'initializing'
+                            ? 'Initializing AI model engine…'
+                            : progress.stage === 'segmenting'
+                              ? 'Extracting foreground subject…'
+                              : progress.stage === 'compositing'
+                                ? 'Compositing transparent output…'
+                                : 'Processing background removal…'}
+                      </p>
+                      {progress.stage === 'downloading' && progress.loadedBytes && progress.totalBytes ? (
+                        <p className="text-xs text-slate-400 font-mono">
+                          {formatBytes(progress.loadedBytes)} / {formatBytes(progress.totalBytes)} ({progress.percent}%)
+                        </p>
+                      ) : (
+                        <p className="text-xs text-indigo-400 font-mono">
+                          {progress.percent > 0 ? `${progress.percent}% complete` : 'Please wait…'}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Real-time Progress Bar */}
+                    <div className="w-48 sm:w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-500 transition-all duration-200"
+                        style={{
+                          width: `${Math.min(100, Math.max(progress.stage === 'downloading' ? progress.percent : 15, progress.percent))}%`,
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className="px-4 py-1.5 text-xs text-rose-300 hover:text-rose-200 bg-rose-950/60 border border-rose-800 rounded transition-colors"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 ) : (
                   <span className="text-xs text-slate-500">Click &quot;Remove Background&quot; to start</span>
@@ -363,12 +435,18 @@ export default function BackgroundRemover() {
                 type="button"
                 onClick={handleRemoveBackground}
                 disabled={isWorking}
-                className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {isWorking ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Processing…</span>
+                    <span>
+                      {progress.stage === 'downloading'
+                        ? `Downloading Model (${progress.percent}%)…`
+                        : progress.stage === 'segmenting'
+                          ? 'Segmenting Subject…'
+                          : 'Processing…'}
+                    </span>
                   </>
                 ) : (
                   <span>Remove Background</span>

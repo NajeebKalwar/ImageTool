@@ -28,10 +28,12 @@ export interface UpscaleOptions {
 }
 
 export interface UpscaleProgressInfo {
-  stage: 'initializing' | 'tiling' | 'blending' | 'complete';
+  stage: 'downloading' | 'initializing' | 'tiling' | 'blending' | 'complete';
   currentTile?: number;
   totalTiles?: number;
   percent: number;
+  loadedBytes?: number;
+  totalBytes?: number;
 }
 
 export interface UpscaleResult {
@@ -166,8 +168,10 @@ export async function runUpscale(
         ? Math.round(info.progress)
         : info.status === 'done' ? 100 : 0;
       onProgress?.({
-        stage: 'initializing',
+        stage: info.status === 'progress' ? 'downloading' : 'initializing',
         percent,
+        loadedBytes: info.loaded,
+        totalBytes: info.total,
       });
     },
     isCancelled,

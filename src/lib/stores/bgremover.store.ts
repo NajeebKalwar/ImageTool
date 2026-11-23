@@ -21,6 +21,8 @@ export interface BackgroundResultMeta {
 export interface BackgroundProgressState {
   stage: string;
   percent: number;
+  loadedBytes?: number;
+  totalBytes?: number;
 }
 
 interface BackgroundRemoverState {

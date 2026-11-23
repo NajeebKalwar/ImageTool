@@ -207,10 +207,14 @@ export class ImageWorkerClient {
     width: number,
     height: number,
     pixels: ArrayBuffer,
+    signal?: AbortSignal,
+    onProgress?: ProgressCallback,
   ): Promise<ReplyMap['ai_remove_background']> {
     return this.request(
       { type: 'ai_remove_background', modelId, width, height, pixels },
       [pixels],
+      signal,
+      onProgress,
     );
   }
 

@@ -22,6 +22,8 @@ export interface UpscaleProgressState {
   percent: number;
   currentTile?: number;
   totalTiles?: number;
+  loadedBytes?: number;
+  totalBytes?: number;
 }
 
 interface UpscalerState {

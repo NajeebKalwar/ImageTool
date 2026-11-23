@@ -101,10 +101,18 @@ export async function handleAiUpscale(
       postProgress?.({
         type: 'ai_progress',
         id,
-        stage: progress.stage === 'blending' ? 'blending' : 'tiling',
+        stage: progress.stage === 'blending'
+          ? 'blending'
+          : progress.stage === 'downloading'
+            ? 'downloading'
+            : progress.stage === 'initializing'
+              ? 'initializing'
+              : 'tiling',
         percent: progress.percent,
         currentTile: progress.currentTile,
         totalTiles: progress.totalTiles,
+        loadedBytes: progress.loadedBytes,
+        totalBytes: progress.totalBytes,
       });
     },
     isCancelled,
@@ -155,8 +163,16 @@ export async function handleAiRemoveBackground(
       postProgress?.({
         type: 'ai_progress',
         id,
-        stage: progress.stage === 'initializing' ? 'initializing' : 'tiling',
+        stage: progress.stage === 'initializing'
+          ? 'initializing'
+          : progress.stage === 'downloading'
+            ? 'downloading'
+            : progress.stage === 'complete'
+              ? 'complete'
+              : 'tiling',
         percent: progress.percent,
+        loadedBytes: progress.loadedBytes,
+        totalBytes: progress.totalBytes,
       });
     },
     isCancelled,
