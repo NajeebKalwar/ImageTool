@@ -144,6 +144,20 @@ describe('ImageWorkerClient', () => {
     expect(client.pendingCount).toBe(0);
   });
 
+  it('respects custom timeout passed to request', async () => {
+    // Default client timeout is 5_000, specify 20_000 custom timeout
+    const promise = client.request({ type: 'ping' }, [], undefined, undefined, 20_000);
+
+    // Advance past default 5_000 — should still be pending
+    vi.advanceTimersByTime(6_000);
+    expect(client.pendingCount).toBe(1);
+
+    // Advance past 20_000 — should reject
+    vi.advanceTimersByTime(15_000);
+    await expect(promise).rejects.toThrow(/timed out after 20000ms/);
+    expect(client.pendingCount).toBe(0);
+  });
+
   // -----------------------------------------------------------------------
   // 5 — Worker error event rejects all pending
   // -----------------------------------------------------------------------

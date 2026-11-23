@@ -88,9 +88,15 @@ export default function ImageUpscaler() {
       return;
     }
 
+    const selectedMeta = MODELS.find((m) => m.id === selectedModelId);
     setStatus('processing');
     setError(null);
-    setProgress({ stage: 'preparing', percent: 0, loadedBytes: 0, totalBytes: 0 });
+    setProgress({
+      stage: isCached ? 'preparing' : 'downloading',
+      percent: 0,
+      loadedBytes: 0,
+      totalBytes: isCached ? 0 : (selectedMeta?.approxDownloadBytes.webgpu ?? 0),
+    });
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -421,6 +427,10 @@ export default function ImageUpscaler() {
                         <p className="text-xs text-slate-400 font-mono">
                           {formatBytes(progress.loadedBytes)} / {formatBytes(progress.totalBytes)} ({progress.percent}%)
                         </p>
+                      ) : progress.stage === 'downloading' && progress.totalBytes ? (
+                        <p className="text-xs text-slate-400 font-mono">
+                          Connecting… ~{formatBytes(progress.totalBytes)}
+                        </p>
                       ) : (
                         <p className="text-xs text-indigo-400 font-mono">
                           {progress.percent > 0 ? `${progress.percent}% complete` : 'Please wait…'}
@@ -463,8 +473,12 @@ export default function ImageUpscaler() {
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>
                       {progress.stage === 'downloading'
-                        ? `Downloading Model (${progress.percent}%)…`
-                        : `Upscaling (${scale}×)…`}
+                        ? progress.loadedBytes && progress.totalBytes
+                          ? `Downloading Model (${progress.percent}%) • ${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)}…`
+                          : `Downloading Model (${progress.percent}%)…`
+                        : progress.stage === 'preparing'
+                          ? 'Preparing Upscaler…'
+                          : `Upscaling (${scale}×)…`}
                     </span>
                   </>
                 ) : (

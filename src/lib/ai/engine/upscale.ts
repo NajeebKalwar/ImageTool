@@ -164,14 +164,20 @@ export async function runUpscale(
     model.id,
     (info) => {
       if (isCancelled?.()) return;
-      const percent = typeof info.progress === 'number'
+      const isDownload = info.status === 'progress' || info.status === 'initiate' || (info as { status: string }).status === 'download';
+      const totalBytes = info.total ?? model.approxDownloadBytes.webgpu;
+      const loadedBytes = info.loaded ?? (info.status === 'done' ? totalBytes : 0);
+      const computedPercent = typeof info.progress === 'number'
         ? Math.round(info.progress)
-        : info.status === 'done' ? 100 : 0;
+        : totalBytes > 0 && loadedBytes > 0
+          ? Math.round((loadedBytes / totalBytes) * 100)
+          : info.status === 'done' ? 100 : 0;
+
       onProgress?.({
-        stage: info.status === 'progress' ? 'downloading' : 'initializing',
-        percent,
-        loadedBytes: info.loaded,
-        totalBytes: info.total,
+        stage: isDownload ? 'downloading' : 'initializing',
+        percent: Math.min(100, Math.max(0, computedPercent)),
+        loadedBytes,
+        totalBytes,
       });
     },
     isCancelled,

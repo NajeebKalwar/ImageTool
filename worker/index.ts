@@ -16,6 +16,7 @@ interface R2GetOptions {
 interface R2ObjectBody {
   body: ReadableStream;
   httpEtag: string;
+  size: number;
   writeHttpMetadata: (headers: Headers) => void;
   range?: unknown;
 }
@@ -77,6 +78,7 @@ export default {
       headers.set('etag', object.httpEtag);
       headers.set('Access-Control-Allow-Origin', '*');
       headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      headers.set('accept-ranges', 'bytes');
 
       // Explicitly set correct Content-Type for all AI model assets and WASM/JS loaders
       if (key.endsWith('.mjs') || key.endsWith('.js')) {
@@ -90,6 +92,14 @@ export default {
       }
 
       const isRange = request.headers.has('range') && 'range' in object;
+      if (isRange && 'range' in object && object.range) {
+        const r = object.range as { offset: number; length: number };
+        headers.set('content-range', `bytes ${r.offset}-${r.offset + r.length - 1}/${object.size}`);
+        headers.set('content-length', r.length.toString());
+      } else {
+        headers.set('content-length', object.size.toString());
+      }
+
       const status = object.body ? (isRange ? 206 : 200) : 304;
 
       return new Response(request.method === 'HEAD' ? null : object.body, {

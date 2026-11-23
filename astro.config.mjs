@@ -1,5 +1,7 @@
 // @ts-check
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'astro/config';
 import { loadEnv } from 'vite';
 
@@ -46,6 +48,66 @@ const includeInSitemap = (page) =>
 
 // The placeholder origin is intentionally non-production.
 // Replace it with your owned production domain before launch.
+/**
+ * Vite plugin that serves cached model files directly from local disk (.cache/models)
+ * during development and preview, falling back to the remote proxy if not cached locally.
+ */
+function localModelServerPlugin() {
+  /** @type {import('vite').Connect.NextHandleFunction} */
+  const serveModelFile = (req, res, next) => {
+    if (!req.url || !req.url.startsWith('/models/')) {
+      return next();
+    }
+    const cleanPath = req.url.split('?')[0].replace(/^\/models\//, '');
+    const localFile = path.resolve(process.cwd(), '.cache/models', decodeURIComponent(cleanPath));
+
+    if (fs.existsSync(localFile) && fs.statSync(localFile).isFile()) {
+      const stat = fs.statSync(localFile);
+      const ext = path.extname(localFile).toLowerCase();
+      let contentType = 'application/octet-stream';
+      if (ext === '.json') contentType = 'application/json; charset=utf-8';
+      else if (ext === '.wasm') contentType = 'application/wasm';
+      else if (ext === '.mjs' || ext === '.js') contentType = 'text/javascript; charset=utf-8';
+      else if (ext === '.onnx') contentType = 'application/octet-stream';
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+      const range = req.headers.range;
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        res.statusCode = 206;
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`);
+        res.setHeader('Content-Length', end - start + 1);
+        fs.createReadStream(localFile, { start, end }).pipe(res);
+      } else {
+        res.statusCode = 200;
+        res.setHeader('Content-Length', stat.size);
+        fs.createReadStream(localFile).pipe(res);
+      }
+      return;
+    }
+    next();
+  };
+
+  return {
+    name: 'vite-local-models-server',
+    /** @param {import('vite').ViteDevServer} server */
+    configureServer(server) {
+      server.middlewares.use(serveModelFile);
+    },
+    /** @param {import('vite').PreviewServer} server */
+    configurePreviewServer(server) {
+      server.middlewares.use(serveModelFile);
+    },
+  };
+}
+
 export default defineConfig({
   site: 'https://imagetool.example',
   trailingSlash: 'never',
@@ -66,7 +128,7 @@ export default defineConfig({
   ],
 
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss(), localModelServerPlugin()],
     build: {
       target: 'esnext',
     },

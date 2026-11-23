@@ -75,9 +75,15 @@ export default function BackgroundRemover() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    const selectedMeta = MODELS.find((m) => m.id === selectedModelId);
     setStatus('processing');
     setError(null);
-    setProgress({ stage: 'initializing', percent: 0, loadedBytes: 0, totalBytes: 0 });
+    setProgress({
+      stage: isCached ? 'initializing' : 'downloading',
+      percent: 0,
+      loadedBytes: 0,
+      totalBytes: isCached ? 0 : (selectedMeta?.approxDownloadBytes.webgpu ?? 0),
+    });
 
     try {
       // Decode image pixels on scratch canvas
@@ -391,6 +397,10 @@ export default function BackgroundRemover() {
                         <p className="text-xs text-slate-400 font-mono">
                           {formatBytes(progress.loadedBytes)} / {formatBytes(progress.totalBytes)} ({progress.percent}%)
                         </p>
+                      ) : progress.stage === 'downloading' && progress.totalBytes ? (
+                        <p className="text-xs text-slate-400 font-mono">
+                          Connecting… ~{formatBytes(progress.totalBytes)}
+                        </p>
                       ) : (
                         <p className="text-xs text-indigo-400 font-mono">
                           {progress.percent > 0 ? `${progress.percent}% complete` : 'Please wait…'}
@@ -442,10 +452,14 @@ export default function BackgroundRemover() {
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>
                       {progress.stage === 'downloading'
-                        ? `Downloading Model (${progress.percent}%)…`
-                        : progress.stage === 'segmenting'
-                          ? 'Segmenting Subject…'
-                          : 'Processing…'}
+                        ? progress.loadedBytes && progress.totalBytes
+                          ? `Downloading Model (${progress.percent}%) • ${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)}…`
+                          : `Downloading Model (${progress.percent}%)…`
+                        : progress.stage === 'initializing'
+                          ? 'Initializing Model Engine…'
+                          : progress.stage === 'segmenting'
+                            ? 'Segmenting Subject…'
+                            : 'Processing…'}
                     </span>
                   </>
                 ) : (

@@ -45,6 +45,7 @@ interface PendingRequest<T extends keyof ReplyMap = keyof ReplyMap> {
   resolve: (value: ReplyMap[T]) => void;
   reject: (reason: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  timeoutMs: number;
   onProgress?: ProgressCallback;
   signal?: AbortSignal;
   abortListener?: () => void;
@@ -56,6 +57,9 @@ interface PendingRequest<T extends keyof ReplyMap = keyof ReplyMap> {
 
 /** Default timeout for worker requests (ms). */
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+/** Extended timeout for AI model downloads, WASM compilation, and inference (10 minutes). */
+export const AI_TIMEOUT_MS = 600_000;
 
 export class ImageWorkerClient {
   private nextId = 1;
@@ -96,6 +100,7 @@ export class ImageWorkerClient {
     transfer: Transferable[] = [],
     signal?: AbortSignal,
     onProgress?: ProgressCallback,
+    customTimeoutMs?: number,
   ): Promise<ReplyMap[T]> {
     if (this.terminated) {
       return Promise.reject(new Error('Worker client has been terminated.'));
@@ -106,12 +111,13 @@ export class ImageWorkerClient {
     }
 
     const id = this.nextId++;
+    const effectiveTimeoutMs = customTimeoutMs ?? this.timeoutMs;
 
     return new Promise<ReplyMap[T]>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.cleanupRequest(id);
-        reject(new Error(`Worker request ${id} timed out after ${this.timeoutMs}ms.`));
-      }, this.timeoutMs);
+        reject(new Error(`Worker request ${id} timed out after ${effectiveTimeoutMs}ms.`));
+      }, effectiveTimeoutMs);
 
       let abortListener: (() => void) | undefined;
       if (signal) {
@@ -127,6 +133,7 @@ export class ImageWorkerClient {
         resolve: resolve as PendingRequest['resolve'],
         reject,
         timer,
+        timeoutMs: effectiveTimeoutMs,
         onProgress,
         signal,
         abortListener,
@@ -195,7 +202,7 @@ export class ImageWorkerClient {
     signal?: AbortSignal,
     onProgress?: ProgressCallback,
   ): Promise<ReplyMap['ai_load']> {
-    return this.request({ type: 'ai_load', modelId }, [], signal, onProgress);
+    return this.request({ type: 'ai_load', modelId }, [], signal, onProgress, AI_TIMEOUT_MS);
   }
 
   /**
@@ -215,6 +222,7 @@ export class ImageWorkerClient {
       [pixels],
       signal,
       onProgress,
+      AI_TIMEOUT_MS,
     );
   }
 
@@ -246,6 +254,7 @@ export class ImageWorkerClient {
       [pixels],
       signal,
       onProgress,
+      AI_TIMEOUT_MS,
     );
   }
 
@@ -321,8 +330,8 @@ export class ImageWorkerClient {
         clearTimeout(entry.timer);
         entry.timer = setTimeout(() => {
           this.cleanupRequest(msg.id);
-          entry.reject(new Error(`Worker request ${msg.id} timed out after ${this.timeoutMs}ms.`));
-        }, this.timeoutMs);
+          entry.reject(new Error(`Worker request ${msg.id} timed out after ${entry.timeoutMs}ms.`));
+        }, entry.timeoutMs);
       }
       return;
     }
