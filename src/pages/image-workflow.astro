@@ -1,0 +1,27 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ImageWorkflow from '../components/ImageWorkflow';
+---
+
+<Layout
+  title="AI Image Workflow Studio - LangChain On-Device Recipes"
+  description="Automate multi-step photo processing with compound on-device LangChain recipes: background removal, super-resolution, canvas padding, and WebP compression."
+  path="/image-workflow"
+>
+  <main id="main-content" class="min-h-screen py-10 px-4">
+    <div class="max-w-4xl mx-auto text-center mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-indigo-950/80 border border-indigo-700/60 text-xs font-semibold text-indigo-300">
+        <span>🦜️🔗 Powered by LangChain.js Core</span>
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-100 tracking-tight mb-3">
+        AI Image Workflow Studio
+      </h1>
+      <p class="text-slate-400 text-sm sm:text-base max-w-xl mx-auto">
+        Execute compound image recipes with automated tool-calling pipelines.
+        100% on-device execution with zero cloud uploads.
+      </p>
+    </div>
+
+    <ImageWorkflow client:load />
+  </main>
+</Layout>
