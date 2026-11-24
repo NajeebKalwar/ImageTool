@@ -163,13 +163,7 @@ export async function handleAiRemoveBackground(
       postProgress?.({
         type: 'ai_progress',
         id,
-        stage: progress.stage === 'initializing'
-          ? 'initializing'
-          : progress.stage === 'downloading'
-            ? 'downloading'
-            : progress.stage === 'complete'
-              ? 'complete'
-              : 'tiling',
+        stage: progress.stage,
         percent: progress.percent,
         loadedBytes: progress.loadedBytes,
         totalBytes: progress.totalBytes,
@@ -179,6 +173,7 @@ export async function handleAiRemoveBackground(
   );
 
   const outBuffer = result.pixels.buffer as ArrayBuffer;
+  const maskBuffer = result.mask.buffer as ArrayBuffer;
 
   return {
     response: {
@@ -188,8 +183,9 @@ export async function handleAiRemoveBackground(
       width: result.width,
       height: result.height,
       pixels: outBuffer,
+      mask: maskBuffer,
       durationMs: result.durationMs,
     },
-    transfer: [outBuffer],
+    transfer: [outBuffer, maskBuffer],
   };
 }

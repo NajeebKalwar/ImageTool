@@ -65,6 +65,39 @@ export default {
       });
 
       if (!object) {
+        // Fallback: proxy from Hugging Face Hub or CDN if not yet in R2
+        let fallbackUrl: string | null = null;
+        const parts = key.split('/');
+        if (parts.length >= 3) {
+          const repo = `${parts[0]}/${parts[1]}`;
+          const filePath = parts.slice(2).join('/');
+          fallbackUrl = `https://huggingface.co/${repo}/resolve/main/${filePath}`;
+        } else if (key.startsWith('wasm/')) {
+          const wasmFile = key.replace(/^wasm\//, '');
+          fallbackUrl = `https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3/dist/${wasmFile}`;
+        }
+
+        if (fallbackUrl) {
+          try {
+            const fbRes = await fetch(fallbackUrl, {
+              method: request.method,
+              headers: request.headers,
+            });
+            if (fbRes.ok || fbRes.status === 206 || fbRes.status === 304) {
+              const fbHeaders = new Headers(fbRes.headers);
+              fbHeaders.set('Access-Control-Allow-Origin', '*');
+              fbHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
+              fbHeaders.set('accept-ranges', 'bytes');
+              return new Response(request.method === 'HEAD' ? null : fbRes.body, {
+                status: fbRes.status,
+                headers: fbHeaders,
+              });
+            }
+          } catch (e) {
+            console.warn(`[R2 Fallback] Failed to fetch ${fallbackUrl}:`, e);
+          }
+        }
+
         return new Response(`Model asset not found: ${key}`, {
           status: 404,
           headers: {

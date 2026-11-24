@@ -27,6 +27,7 @@ export interface BackgroundRemovalResult {
   width: number;
   height: number;
   pixels: Uint8ClampedArray;
+  mask: Uint8ClampedArray;
   durationMs: number;
 }
 
@@ -61,39 +62,53 @@ export function extractMaskFromSegmentationOutput(output: unknown): RawImage {
 }
 
 /**
- * Composites the extracted alpha mask into the source RGBA image buffer in-place.
- * Preserves RGB channels while updating the alpha channel, handling 1, 3, and 4 channel masks.
+ * Extracts a normalized 1-channel 8-bit alpha matte (0-255) from a RawImage mask.
  */
-export function compositeAlphaMask(
-  sourceRgba: Uint8ClampedArray,
+export function extractMaskChannel(
+  mask: RawImage,
   width: number,
   height: number,
-  mask: RawImage,
 ): Uint8ClampedArray {
   const pixelCount = width * height;
+  const matte = new Uint8ClampedArray(pixelCount);
   const maskData = mask.data;
   const maskChannels = mask.channels;
 
   for (let i = 0; i < pixelCount; i++) {
-    const pxOffset = i * 4;
-    let maskA = 255;
-
     if (maskChannels === 1) {
-      maskA = maskData[i];
+      matte[i] = maskData[i];
     } else if (maskChannels === 4) {
-      maskA = maskData[i * 4 + 3];
+      matte[i] = maskData[i * 4 + 3];
     } else if (maskChannels === 3) {
-      maskA = Math.round(
+      matte[i] = Math.round(
         0.299 * maskData[i * 3] +
         0.587 * maskData[i * 3 + 1] +
         0.114 * maskData[i * 3 + 2]
       );
     } else {
-      maskA = maskData[i * maskChannels];
+      matte[i] = maskData[i * maskChannels];
     }
+  }
+  return matte;
+}
 
-    // Composite mask value with any pre-existing source alpha channel
+/**
+ * Composites the extracted alpha mask into the source RGBA image buffer in-place.
+ * Preserves RGB channels while updating the alpha channel, handling RawImage or 1-channel matte.
+ */
+export function compositeAlphaMask(
+  sourceRgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  mask: RawImage | Uint8ClampedArray,
+): Uint8ClampedArray {
+  const pixelCount = width * height;
+  const matte = mask instanceof RawImage ? extractMaskChannel(mask, width, height) : mask;
+
+  for (let i = 0; i < pixelCount; i++) {
+    const pxOffset = i * 4;
     const srcA = sourceRgba[pxOffset + 3];
+    const maskA = matte[i];
     sourceRgba[pxOffset + 3] = Math.round((srcA * maskA) / 255);
   }
 
@@ -141,7 +156,7 @@ export async function removeBackground(
     (info) => {
       if (isCancelled?.()) return;
       const isDownload = info.status === 'progress' || info.status === 'initiate' || (info as { status: string }).status === 'download';
-      const totalBytes = info.total ?? model.approxDownloadBytes.webgpu;
+      const totalBytes = info.total ?? (model ? model.approxDownloadBytes.webgpu : 0);
       const loadedBytes = info.loaded ?? (info.status === 'done' ? totalBytes : 0);
       const computedPercent = typeof info.progress === 'number'
         ? Math.round(info.progress)
@@ -181,20 +196,28 @@ export async function removeBackground(
     output = await activePipeline(inputRaw);
   } catch (inferenceErr) {
     if (isCancelled?.()) throw new CancelledError();
+    // WebGPU can initialize successfully and still fail when an operator exceeds
+    // device shader limits. Retry this model on WASM, and use MODNet if that fails.
     console.warn(
       `[background] Inference failed on '${activeBackend}', falling back to WASM...`,
       inferenceErr,
     );
     fallbackOccurred = true;
-    const fallbackEntry = await getPipeline(
-      model.id,
-      undefined,
-      isCancelled,
-      'wasm',
-    );
-    activePipeline = fallbackEntry.instance;
-    activeBackend = 'wasm';
-    output = await activePipeline(inputRaw);
+    try {
+      const fallbackEntry = await getPipeline(model.id, undefined, isCancelled, 'wasm');
+      activePipeline = fallbackEntry.instance;
+      activeBackend = 'wasm';
+      output = await activePipeline(inputRaw);
+    } catch (wasmErr) {
+      if (isCancelled?.()) throw new CancelledError();
+      if (model.id !== 'birefnet-lite') throw wasmErr;
+      console.warn('[background] BiRefNet-lite failed on WASM; retrying with MODNet.', wasmErr);
+      const fallbackEntry = await getPipeline('modnet', undefined, isCancelled);
+      activePipeline = fallbackEntry.instance;
+      activeBackend = fallbackEntry.backend;
+      output = await activePipeline(inputRaw);
+      model = fallbackEntry.model;
+    }
   }
 
   if (isCancelled?.()) {
@@ -214,8 +237,9 @@ export async function removeBackground(
     mask = await mask.resize(width, height);
   }
 
-  // 6. Composite alpha mask with source RGBA pixels in-place
-  const finalPixels = compositeAlphaMask(pixels, width, height, mask);
+  // 6. Extract normalized 1-channel matte and composite in-place
+  const rawMask = extractMaskChannel(mask, width, height);
+  const finalPixels = compositeAlphaMask(pixels, width, height, rawMask);
 
   // 7. Output quality verification: guard against all-transparent failure
   const pixelCount = width * height;
@@ -250,6 +274,7 @@ export async function removeBackground(
     width,
     height,
     pixels: finalPixels,
+    mask: rawMask,
     durationMs,
   };
 }

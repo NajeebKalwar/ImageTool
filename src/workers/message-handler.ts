@@ -386,6 +386,15 @@ export async function handleMessage(
 
             activeCancellations.delete(id);
 
+            const maskCount = width * height;
+            const maskArray = new Uint8ClampedArray(maskCount);
+            if (aiRes.mask && aiRes.mask.length === maskCount) {
+              for (let i = 0; i < maskCount; i++) {
+                maskArray[i] = Math.round(Math.max(0, Math.min(1, aiRes.mask[i])) * 255);
+              }
+            }
+            const maskBuffer = maskArray.buffer as ArrayBuffer;
+
             return {
               response: {
                 type: 'ai_result',
@@ -394,9 +403,10 @@ export async function handleMessage(
                 width: aiRes.width,
                 height: aiRes.height,
                 pixels,
+                mask: maskBuffer,
                 durationMs: aiRes.durationMs,
               },
-              transfer: [pixels],
+              transfer: [pixels, maskBuffer],
             };
           } catch (err) {
             activeCancellations.delete(id);

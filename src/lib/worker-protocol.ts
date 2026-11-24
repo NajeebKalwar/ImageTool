@@ -127,6 +127,7 @@ export type WorkerToMain =
       width: number;
       height: number;
       pixels: ArrayBuffer;
+      mask?: ArrayBuffer;
       durationMs: number;
     }
   | {
@@ -135,6 +136,8 @@ export type WorkerToMain =
       stage:
         | 'downloading'
         | 'initializing'
+        | 'segmenting'
+        | 'compositing'
         | 'tiling'
         | 'blending'
         | 'encoding'

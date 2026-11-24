@@ -1,16 +1,71 @@
-import { useEffect, useState, useRef } from 'react';
-import { useBackgroundRemoverStore, type PreviewBgMode } from '../lib/stores/bgremover.store';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import {
+  useBackgroundRemoverStore,
+  type PreviewBgMode,
+  type SubjectCategory,
+  type BrushMode,
+} from '../lib/stores/bgremover.store';
 import { useWorkerClient } from '../lib/hooks/useWorkerClient';
 import { useImageFile } from '../lib/hooks/useImageFile';
 import { detectDeviceCapabilities, type DeviceCapabilities } from '../lib/ai/device';
 import { isModelCachedInBrowser } from '../lib/ai/browser-cache';
 import { MODELS } from '../lib/ai/registry';
 import { detectDeviceTier, TIER_LIMITS } from '../lib/ai/memory-policy';
+import {
+  applyMaskThreshold,
+  applyEdgeSoftness,
+  applyBrushStroke,
+  compositeMaskToRgba,
+} from '../lib/ai/mask-refinement';
 
 function formatBytes(bytes?: number): string {
   if (!bytes || bytes <= 0) return '';
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+interface SubjectGuidanceOption {
+  id: SubjectCategory;
+  title: string;
+  recommendedModel: 'modnet' | 'birefnet-lite';
+  badge: string;
+  description: string;
+  icon: string;
+}
+
+const SUBJECT_OPTIONS: readonly SubjectGuidanceOption[] = [
+  {
+    id: 'portrait',
+    title: 'Portraits & People',
+    recommendedModel: 'modnet',
+    badge: 'Fastest (~12 MB)',
+    description: 'Selfies, full-body humans, portrait photography.',
+    icon: '👤',
+  },
+  {
+    id: 'fine-edge',
+    title: 'Hair, Fur & Intricate',
+    recommendedModel: 'birefnet-lite',
+    badge: 'High Detail (~114 MB)',
+    description: 'Fine hair strands, pet fur, lace, and complex transparencies.',
+    icon: '🐾',
+  },
+  {
+    id: 'product',
+    title: 'Objects & Architecture',
+    recommendedModel: 'birefnet-lite',
+    badge: 'High Precision',
+    description: 'Buildings, monuments, vehicles, e-commerce products & furniture.',
+    icon: '🏛️',
+  },
+  {
+    id: 'graphic',
+    title: 'Logos & Graphics',
+    recommendedModel: 'modnet',
+    badge: 'Crisp Cutout',
+    description: 'Stickers, illustrations, badges, and high-contrast artwork.',
+    icon: '🎨',
+  },
+] as const;
 
 export default function BackgroundRemover() {
   const {
@@ -18,16 +73,21 @@ export default function BackgroundRemover() {
     source,
     result,
     selectedModelId,
+    subjectCategory,
     previewBg,
     customBgColor,
     progress,
+    refinement,
     error,
     setSource,
     setModelId,
+    setSubjectCategory,
     setPreviewBg,
     setCustomBgColor,
     setProgress,
     setResult,
+    setRefinement,
+    resetRefinement,
     setStatus,
     setError,
     reset,
@@ -35,17 +95,28 @@ export default function BackgroundRemover() {
 
   const [deviceCaps, setDeviceCaps] = useState<DeviceCapabilities | null>(null);
   const [isCached, setIsCached] = useState<boolean>(false);
+  const [activeStep, setActiveStep] = useState<number>(1);
+  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+
   const workerClient = useWorkerClient();
   const isProcessingRef = useRef<boolean>(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // References to preserve raw buffers for instantaneous non-destructive refinement
+  const sourcePixelsRef = useRef<Uint8ClampedArray | null>(null);
+  const baseMaskRef = useRef<Uint8ClampedArray | null>(null);
+  const workingMaskRef = useRef<Uint8ClampedArray | null>(null);
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const { dropZoneProps, fileInputProps, openFileDialog, error: fileError } = useImageFile(
     (info) => {
       setSource(info);
+      setActiveStep(2);
     },
   );
 
-  // Initialize device detection
+  // Initialize hardware capabilities
   useEffect(() => {
     detectDeviceCapabilities()
       .then(setDeviceCaps)
@@ -59,7 +130,7 @@ export default function BackgroundRemover() {
       });
   }, []);
 
-  // Check browser cache status for selected model
+  // Update offline cache status
   useEffect(() => {
     const selectedMeta = MODELS.find((m) => m.id === selectedModelId);
     if (!selectedMeta) return;
@@ -69,17 +140,86 @@ export default function BackgroundRemover() {
       .catch(() => setIsCached(false));
   }, [selectedModelId]);
 
+  // Sync active step with workflow progression
+  useEffect(() => {
+    if (!source) {
+      setActiveStep(1);
+    } else if (result) {
+      setActiveStep(4);
+    } else if (status === 'processing' || status === 'loading-model') {
+      setActiveStep(3);
+    } else {
+      setActiveStep(2);
+    }
+  }, [source, result, status]);
+
+  // Subject category selection handler
+  const handleSelectSubject = (opt: SubjectGuidanceOption) => {
+    setSubjectCategory(opt.id);
+    setModelId(opt.recommendedModel);
+  };
+
+  // Redraws refined image from working mask, threshold, and edge softness
+  const renderRefinedOutput = useCallback(async () => {
+    if (!sourcePixelsRef.current || !workingMaskRef.current || !result || !canvasRef.current) {
+      return;
+    }
+
+    const { width, height } = result;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // 1. Threshold
+    let currentMask = applyMaskThreshold(workingMaskRef.current, refinement.threshold);
+
+    // 2. Edge Softness
+    if (refinement.edgeSoftness > 0) {
+      currentMask = applyEdgeSoftness(currentMask, width, height, refinement.edgeSoftness);
+    }
+
+    // 3. Composite with original pixels
+    const refinedRgba = compositeMaskToRgba(sourcePixelsRef.current, currentMask, width, height);
+
+    // 4. Draw to canvas
+    const imgData = new ImageData(refinedRgba as any, width, height);
+    canvas.width = width;
+    canvas.height = height;
+    ctx.putImageData(imgData, 0, 0);
+
+    // 5. Update exported Blob
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const newUrl = URL.createObjectURL(blob);
+        setResult({
+          ...result,
+          blob,
+          url: newUrl,
+          mask: currentMask,
+        });
+      }
+    }, 'image/png');
+  }, [result, refinement.threshold, refinement.edgeSoftness, setResult]);
+
+  // Handle threshold & softness changes
+  useEffect(() => {
+    if (result && workingMaskRef.current && sourcePixelsRef.current) {
+      renderRefinedOutput();
+    }
+  }, [refinement.threshold, refinement.edgeSoftness]);
+
+  // Execute Background Removal
   const handleRemoveBackground = async () => {
     if (!source || isWorking || isProcessingRef.current) return;
     isProcessingRef.current = true;
 
-    // Pre-flight memory verification based on device tier
+    // Memory verification based on device tier
     const tier = detectDeviceTier();
     const limits = TIER_LIMITS[tier];
     const totalPixels = source.width * source.height;
     if (totalPixels > limits.maxCanvasPixels) {
       setError(
-        `Image resolution (${source.width}×${source.height} = ${(totalPixels / 1e6).toFixed(1)} MP) exceeds maximum safe limit for this device (${(limits.maxCanvasPixels / 1e6).toFixed(1)} MP). Please upload a smaller image.`,
+        `Image resolution (${source.width}×${source.height} = ${(totalPixels / 1e6).toFixed(1)} MP) exceeds safe limits for this device (${(limits.maxCanvasPixels / 1e6).toFixed(1)} MP). Please resize or choose a smaller image.`,
       );
       isProcessingRef.current = false;
       return;
@@ -104,19 +244,22 @@ export default function BackgroundRemover() {
       img.src = source.previewUrl;
       await img.decode();
 
-      const canvas = document.createElement('canvas');
-      canvas.width = source.width;
-      canvas.height = source.height;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) throw new Error('Could not acquire 2D canvas context.');
+      const scratchCanvas = document.createElement('canvas');
+      scratchCanvas.width = source.width;
+      scratchCanvas.height = source.height;
+      const scratchCtx = scratchCanvas.getContext('2d', { willReadFrequently: true });
+      if (!scratchCtx) throw new Error('Could not acquire 2D canvas context.');
 
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, source.width, source.height);
-      const pixelBuffer = imageData.data.buffer; // Zero-copy transfer without slice
+      scratchCtx.drawImage(img, 0, 0);
+      const imageData = scratchCtx.getImageData(0, 0, source.width, source.height);
+
+      // Save pristine copy of original pixels for subsequent interactive refinements
+      sourcePixelsRef.current = new Uint8ClampedArray(imageData.data);
+
+      const pixelBuffer = imageData.data.buffer; // Zero-copy transferable buffer
 
       let res;
       try {
-        // Execute AI background removal in Web Worker with progress and cancel support
         res = await workerClient.removeBackground(
           selectedModelId,
           source.width,
@@ -133,14 +276,13 @@ export default function BackgroundRemover() {
           },
         );
       } catch (workerErr) {
-        // Graceful degradation: if BiRefNet-lite fails and not user-aborted, auto-fallback to MODNet
+        // Automatic fallback: if BiRefNet-lite encounters memory/initialization error, degrade to MODNet
         if (selectedModelId === 'birefnet-lite' && !controller.signal.aborted) {
-          console.warn('[BackgroundRemover] BiRefNet-lite failed. Gracefully falling back to MODNet...', workerErr);
+          console.warn('[BackgroundRemover] BiRefNet-lite failed. Falling back to MODNet...', workerErr);
           setModelId('modnet');
           setProgress({ stage: 'initializing', percent: 20 });
 
-          // Re-extract fresh pixel buffer from scratch canvas for fallback retry
-          const retryImageData = ctx.getImageData(0, 0, source.width, source.height);
+          const retryImageData = scratchCtx.getImageData(0, 0, source.width, source.height);
           res = await workerClient.removeBackground(
             'modnet',
             source.width,
@@ -161,24 +303,27 @@ export default function BackgroundRemover() {
         }
       }
 
-      // Composite output pixels to canvas and export to PNG Blob
-      const outCanvas = document.createElement('canvas');
+      // Store raw masks for zero-latency adjustments
+      if (res.mask) {
+        const maskArr = new Uint8ClampedArray(res.mask);
+        baseMaskRef.current = new Uint8ClampedArray(maskArr);
+        workingMaskRef.current = new Uint8ClampedArray(maskArr);
+      }
+
+      // Draw initial result onto canvas
+      const outCanvas = canvasRef.current || document.createElement('canvas');
       outCanvas.width = res.width;
       outCanvas.height = res.height;
       const outCtx = outCanvas.getContext('2d');
       if (!outCtx) throw new Error('Could not acquire output canvas context.');
 
-      const outImageData = new ImageData(
-        new Uint8ClampedArray(res.pixels),
-        res.width,
-        res.height,
-      );
+      const outImageData = new ImageData(new Uint8ClampedArray(res.pixels), res.width, res.height);
       outCtx.putImageData(outImageData, 0, 0);
 
       const blob = await new Promise<Blob | null>((resolve) =>
         outCanvas.toBlob(resolve, 'image/png'),
       );
-      if (!blob) throw new Error('Failed to generate output image Blob.');
+      if (!blob) throw new Error('Failed to create PNG output blob.');
 
       const url = URL.createObjectURL(blob);
       setResult({
@@ -186,9 +331,12 @@ export default function BackgroundRemover() {
         url,
         width: res.width,
         height: res.height,
+        mask: res.mask ? new Uint8ClampedArray(res.mask) : undefined,
         durationMs: res.durationMs,
       });
+
       setIsCached(true);
+      resetRefinement();
     } catch (err) {
       if (err instanceof Error && err.message === 'Operation cancelled') {
         setStatus('idle');
@@ -211,6 +359,72 @@ export default function BackgroundRemover() {
     setProgress({ stage: 'idle', percent: 0 });
   };
 
+  // Interactive Brush stroke handling on the canvas
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (refinement.brushMode === 'none' || !workingMaskRef.current || !result) return;
+    setIsDrawing(true);
+    applyBrushAtEvent(e);
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || refinement.brushMode === 'none' || !workingMaskRef.current || !result) return;
+    applyBrushAtEvent(e);
+  };
+
+  const handleCanvasMouseUp = () => {
+    if (isDrawing) {
+      setIsDrawing(false);
+      renderRefinedOutput();
+    }
+  };
+
+  const applyBrushAtEvent = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || !workingMaskRef.current || !result || refinement.brushMode === 'none') {
+      return;
+    }
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = result.width / rect.width;
+    const scaleY = result.height / rect.height;
+
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    applyBrushStroke(
+      workingMaskRef.current,
+      result.width,
+      result.height,
+      x,
+      y,
+      refinement.brushSize,
+      refinement.brushMode,
+    );
+
+    // Fast preview redraw
+    const ctx = canvas.getContext('2d');
+    if (ctx && sourcePixelsRef.current) {
+      const fastRgba = compositeMaskToRgba(
+        sourcePixelsRef.current,
+        workingMaskRef.current,
+        result.width,
+        result.height,
+      );
+      ctx.putImageData(
+        new ImageData(fastRgba as any, result.width, result.height),
+        0,
+        0,
+      );
+    }
+  };
+
+  const handleResetRefinements = () => {
+    if (baseMaskRef.current && workingMaskRef.current) {
+      workingMaskRef.current.set(baseMaskRef.current);
+      resetRefinement();
+      renderRefinedOutput();
+    }
+  };
+
   const handleDownload = () => {
     if (!result || !source) return;
     const baseName = source.file.name.replace(/\.[^/.]+$/, '');
@@ -228,96 +442,154 @@ export default function BackgroundRemover() {
   const displayError = error || fileError;
 
   return (
-    <div className="w-full max-w-4xl mx-auto my-6 p-4 sm:p-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-xl">
+    <div className="w-full max-w-4xl mx-auto my-6 p-4 sm:p-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-xl space-y-6">
       {/* Privacy & Hardware Capabilities Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 p-3 bg-slate-950/80 border border-slate-800 rounded-lg">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-3 bg-slate-950/80 border border-slate-800 rounded-lg">
         <div className="flex items-center gap-2 text-emerald-300 text-xs sm:text-sm font-medium">
           <svg className="w-4 h-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
           <span>
-            <strong>100% On-Device AI:</strong> Model executes in your browser. Zero image data is sent to external servers.
+            <strong>100% On-Device AI:</strong> Model executes locally in your browser. Zero image data is sent to external servers.
           </span>
         </div>
 
         {deviceCaps && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-950/70 border border-indigo-700/60 rounded text-xs font-semibold text-indigo-300">
-            <span>{deviceCaps.hasWebGPU ? '⚡ WebGPU' : '⚙️ WASM Fallback'}</span>
+            <span>{deviceCaps.hasWebGPU ? '⚡ WebGPU Accelerated' : '⚙️ WebAssembly Fallback'}</span>
           </div>
         )}
       </div>
 
+      {/* Guided Workflow Stepper */}
+      <div className="border border-slate-800 bg-slate-950/50 rounded-lg p-3">
+        <div className="grid grid-cols-5 gap-2 text-center text-xs">
+          {[
+            { step: 1, label: '1. Select Image' },
+            { step: 2, label: '2. Subject & Model' },
+            { step: 3, label: '3. Segmentation' },
+            { step: 4, label: '4. Refine Mask' },
+            { step: 5, label: '5. Export' },
+          ].map((s) => {
+            const isCompleted = activeStep > s.step;
+            const isCurrent = activeStep === s.step;
+            return (
+              <div
+                key={s.step}
+                className={`py-1.5 px-1 rounded transition-colors ${
+                  isCurrent
+                    ? 'bg-indigo-600/30 text-indigo-300 font-semibold border border-indigo-500/40'
+                    : isCompleted
+                      ? 'text-emerald-400 font-medium'
+                      : 'text-slate-500'
+                }`}
+              >
+                <span>{s.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {displayError && (
-        <div className="mb-6 p-3 bg-rose-950/80 border border-rose-800 rounded-lg text-rose-200 text-sm">
-          {displayError}
+        <div className="p-3 bg-rose-950/80 border border-rose-800 rounded-lg text-rose-200 text-sm flex items-start justify-between">
+          <span>{displayError}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-xs text-rose-300 hover:text-white ml-2 underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
-      {/* Model Selection Toolbar */}
-      <div className="mb-6 p-4 bg-slate-950/50 border border-slate-800 rounded-lg space-y-3">
+      {/* Step 2: Subject Guidance & Model Selection */}
+      <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-lg space-y-3">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-            AI Segmentation Model
-          </span>
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Step 2: Subject Guidance & Recommendation
+            </span>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Select your subject type for optimal AI segmentation quality and edge preservation.
+            </p>
+          </div>
           <div className="text-xs text-slate-400">
-            Status: {isCached ? (
-              <span className="text-emerald-400 font-medium">💾 Cached in Browser (Offline Ready)</span>
+            Status:{' '}
+            {isCached ? (
+              <span className="text-emerald-400 font-medium">💾 Cached (Offline Ready)</span>
             ) : (
-              <span className="text-amber-300 font-medium">⬇️ Download Required on First Run</span>
+              <span className="text-amber-300 font-medium">⬇️ Download on first run</span>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setModelId('modnet')}
-            disabled={isWorking}
-            className={`text-left p-3 rounded-lg border transition-all ${
-              selectedModelId === 'modnet'
-                ? 'bg-indigo-950/60 border-indigo-500 shadow-sm shadow-indigo-500/20'
-                : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm text-slate-100">MODNet</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Apache-2.0</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Lightweight real-time portrait and object matting optimized for mobile & lower-end devices.
-            </p>
-            <div className="flex gap-4 text-[11px] text-slate-500 mt-2">
-              <span>Size: ~12 MB</span>
-              <span>Fastest</span>
-            </div>
-          </button>
+        {/* Subject Guidance Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {SUBJECT_OPTIONS.map((opt) => {
+            const isSelected = subjectCategory === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleSelectSubject(opt)}
+                disabled={isWorking}
+                className={`p-3 text-left rounded-lg border transition-all ${
+                  isSelected
+                    ? 'bg-indigo-950/60 border-indigo-500 shadow-sm shadow-indigo-500/20 ring-1 ring-indigo-500/40'
+                    : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
+                    <span>{opt.icon}</span>
+                    <span>{opt.title}</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 line-clamp-2">{opt.description}</p>
+                <div className="mt-2 flex items-center justify-between text-[10px]">
+                  <span className="text-indigo-400 font-mono">{opt.recommendedModel}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">{opt.badge}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
-          <button
-            type="button"
-            onClick={() => setModelId('birefnet-lite')}
-            disabled={isWorking}
-            className={`text-left p-3 rounded-lg border transition-all ${
-              selectedModelId === 'birefnet-lite'
-                ? 'bg-indigo-950/60 border-indigo-500 shadow-sm shadow-indigo-500/20'
-                : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm text-slate-100">BiRefNet-lite</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">MIT</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              High-accuracy bilateral reference network for fine hair, fur, and intricate edges.
-            </p>
-            <div className="flex gap-4 text-[11px] text-slate-500 mt-2">
-              <span>Size: ~114 MB</span>
-              <span>Highest Quality</span>
-            </div>
-          </button>
+        {/* Direct Model Override Toggle */}
+        <div className="pt-2 flex flex-wrap items-center justify-between gap-2 text-xs border-t border-slate-800/80">
+          <span className="text-slate-400">Direct Model Selection:</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setModelId('modnet')}
+              disabled={isWorking}
+              className={`px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                selectedModelId === 'modnet'
+                  ? 'bg-indigo-600 text-white border-indigo-500'
+                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              MODNet (~12 MB)
+            </button>
+            <button
+              type="button"
+              onClick={() => setModelId('birefnet-lite')}
+              disabled={isWorking}
+              className={`px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                selectedModelId === 'birefnet-lite'
+                  ? 'bg-indigo-600 text-white border-indigo-500'
+                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              BiRefNet-lite (~114 MB)
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Upload Zone / Workspace */}
+      {/* Step 1 & Work Area */}
       {!source ? (
         <div
           {...dropZoneProps}
@@ -337,7 +609,7 @@ export default function BackgroundRemover() {
         <div className="space-y-6">
           {/* Dual Preview Area */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Original Card */}
+            {/* Original Image Card */}
             <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Original</span>
@@ -357,16 +629,18 @@ export default function BackgroundRemover() {
                   className="max-w-full max-h-full object-contain"
                 />
               </div>
-              <div className="flex justify-between text-xs text-slate-500 mt-2">
+              <div className="flex justify-between text-xs text-slate-500 mt-2 font-mono">
                 <span>{source.width} × {source.height} px</span>
                 <span>{(source.file.size / (1024 * 1024)).toFixed(2)} MB</span>
               </div>
             </div>
 
-            {/* Processed Card */}
+            {/* Output / Interactive Canvas Card */}
             <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Transparent Output</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  {result ? 'Refined Output' : 'Transparent Output'}
+                </span>
                 {result && (
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] text-slate-400 mr-1">Preview BG:</span>
@@ -404,7 +678,7 @@ export default function BackgroundRemover() {
               </div>
 
               <div
-                className={`aspect-square rounded flex items-center justify-center overflow-hidden ${
+                className={`aspect-square rounded flex items-center justify-center overflow-hidden relative ${
                   previewBg === 'transparent'
                     ? 'bg-[linear-gradient(45deg,#1e293b_25%,transparent_25%),linear-gradient(-45deg,#1e293b_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1e293b_75%),linear-gradient(-45deg,transparent_75%,#1e293b_75%)] bg-[size:16px_16px] bg-slate-900'
                     : previewBg === 'white'
@@ -415,13 +689,23 @@ export default function BackgroundRemover() {
                 }`}
                 style={previewBg === 'custom' ? { backgroundColor: customBgColor } : {}}
               >
-                {result ? (
-                  <img
-                    src={result.url}
-                    alt="Background removed output"
-                    className="max-w-full max-h-full object-contain"
-                  />
-                ) : isWorking ? (
+                {/* Interactive HTML5 Canvas */}
+                <canvas
+                  ref={canvasRef}
+                  onMouseDown={handleCanvasMouseDown}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseUp={handleCanvasMouseUp}
+                  onMouseLeave={handleCanvasMouseUp}
+                  className={`max-w-full max-h-full object-contain ${
+                    result ? 'block' : 'hidden'
+                  } ${
+                    refinement.brushMode !== 'none'
+                      ? 'cursor-crosshair'
+                      : 'cursor-default'
+                  }`}
+                />
+
+                {!result && isWorking && (
                   <div className="w-full h-full flex flex-col items-center justify-center p-6 space-y-4 bg-slate-950/80 backdrop-blur-sm">
                     <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                     <div className="text-center space-y-1 max-w-[280px]">
@@ -431,7 +715,7 @@ export default function BackgroundRemover() {
                           : progress.stage === 'initializing'
                             ? 'Initializing AI model engine…'
                             : progress.stage === 'segmenting'
-                              ? 'Extracting foreground subject…'
+                              ? 'Segmenting foreground subject…'
                               : progress.stage === 'compositing'
                                 ? 'Compositing transparent output…'
                                 : 'Processing background removal…'}
@@ -451,12 +735,15 @@ export default function BackgroundRemover() {
                       )}
                     </div>
 
-                    {/* Real-time Progress Bar */}
+                    {/* Progress Bar */}
                     <div className="w-48 sm:w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-indigo-500 transition-all duration-200"
                         style={{
-                          width: `${Math.min(100, Math.max(progress.stage === 'downloading' ? progress.percent : 15, progress.percent))}%`,
+                          width: `${Math.min(
+                            100,
+                            Math.max(progress.stage === 'downloading' ? progress.percent : 15, progress.percent),
+                          )}%`,
                         }}
                       />
                     </div>
@@ -469,17 +756,122 @@ export default function BackgroundRemover() {
                       Cancel
                     </button>
                   </div>
-                ) : (
+                )}
+
+                {!result && !isWorking && (
                   <span className="text-xs text-slate-500">Click &quot;Remove Background&quot; to start</span>
                 )}
               </div>
 
-              <div className="flex justify-between text-xs text-slate-500 mt-2">
+              <div className="flex justify-between text-xs text-slate-500 mt-2 font-mono">
                 <span>{result ? `${result.width} × ${result.height} px` : '—'}</span>
                 <span>{result ? `${result.durationMs} ms` : '—'}</span>
               </div>
             </div>
           </div>
+
+          {/* Step 4: Mask Refinement Controls (Shown when result is available) */}
+          {result && (
+            <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-lg space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
+                    Step 4: Refine Mask & Perfect Edges
+                  </span>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Adjust mask threshold, soften edge borders, or brush in foreground/background.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetRefinements}
+                  className="text-xs text-slate-400 hover:text-slate-200 underline"
+                >
+                  Reset Adjustments
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                {/* Threshold Slider */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-300 font-medium">Mask Threshold</span>
+                    <span className="text-indigo-400 font-mono">{refinement.threshold}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={refinement.threshold}
+                    onChange={(e) => setRefinement({ threshold: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500">Expands or cuts border pixels to clean fringes.</p>
+                </div>
+
+                {/* Edge Softness Slider */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-300 font-medium">Edge Softness / Feather</span>
+                    <span className="text-indigo-400 font-mono">{refinement.edgeSoftness} px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="20"
+                    value={refinement.edgeSoftness}
+                    onChange={(e) => setRefinement({ edgeSoftness: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500">Blurs alpha transitions for natural integration.</p>
+                </div>
+              </div>
+
+              {/* Interactive Brush Toolbar */}
+              <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-300 font-medium">Touch-up Brush:</span>
+                  {(['none', 'restore', 'erase'] as BrushMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setRefinement({ brushMode: mode })}
+                      className={`px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                        refinement.brushMode === mode
+                          ? mode === 'restore'
+                            ? 'bg-emerald-600 text-white border-emerald-500'
+                            : mode === 'erase'
+                              ? 'bg-rose-600 text-white border-rose-500'
+                              : 'bg-indigo-600 text-white border-indigo-500'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      {mode === 'none'
+                        ? 'Off'
+                        : mode === 'restore'
+                          ? 'Restore Foreground [+]'
+                          : 'Erase Background [-]'}
+                    </button>
+                  ))}
+                </div>
+
+                {refinement.brushMode !== 'none' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Size:</span>
+                    <input
+                      type="range"
+                      min="5"
+                      max="80"
+                      value={refinement.brushSize}
+                      onChange={(e) => setRefinement({ brushSize: Number(e.target.value) })}
+                      className="w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                    <span className="text-xs font-mono text-indigo-400 w-8">{refinement.brushSize}px</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
@@ -488,7 +880,7 @@ export default function BackgroundRemover() {
                 type="button"
                 onClick={handleRemoveBackground}
                 disabled={isWorking}
-                className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20"
               >
                 {isWorking ? (
                   <>
@@ -501,7 +893,7 @@ export default function BackgroundRemover() {
                         : progress.stage === 'initializing'
                           ? 'Initializing Model Engine…'
                           : progress.stage === 'segmenting'
-                            ? 'Segmenting Subject…'
+                            ? 'Segmenting Foreground Subject…'
                             : 'Processing…'}
                     </span>
                   </>
@@ -510,11 +902,11 @@ export default function BackgroundRemover() {
                 )}
               </button>
             ) : (
-              <div className="flex w-full gap-3">
+              <div className="flex flex-col sm:flex-row w-full gap-3">
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="flex-1 py-3 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -526,7 +918,7 @@ export default function BackgroundRemover() {
                   onClick={reset}
                   className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition-colors"
                 >
-                  Reset
+                  Start Over
                 </button>
               </div>
             )}

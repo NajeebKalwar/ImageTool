@@ -479,7 +479,8 @@ describe('ai operations — message handling', () => {
       expect(response.width).toBe(4);
       expect(response.height).toBe(4);
       expect(response.durationMs).toBeGreaterThan(0);
-      expect(transfer).toHaveLength(1);
+      expect(response.mask).toBeDefined();
+      expect(transfer).toHaveLength(2);
       expect(transfer[0]).toBe(pixels);
     }
   });

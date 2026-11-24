@@ -58,6 +58,16 @@ function localModelServerPlugin() {
     if (!req.url || !req.url.startsWith('/models/')) {
       return next();
     }
+
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', '*');
+      res.end();
+      return;
+    }
+
     const cleanPath = req.url.split('?')[0].replace(/^\/models\//, '');
     const localFile = path.resolve(process.cwd(), '.cache/models', decodeURIComponent(cleanPath));
 
@@ -76,6 +86,13 @@ function localModelServerPlugin() {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
+      if (req.method === 'HEAD') {
+        res.statusCode = 200;
+        res.setHeader('Content-Length', stat.size);
+        res.end();
+        return;
+      }
+
       const range = req.headers.range;
       if (range) {
         const parts = range.replace(/bytes=/, '').split('-');
@@ -84,11 +101,27 @@ function localModelServerPlugin() {
         res.statusCode = 206;
         res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`);
         res.setHeader('Content-Length', end - start + 1);
-        fs.createReadStream(localFile, { start, end }).pipe(res);
+        const stream = fs.createReadStream(localFile, { start, end });
+        req.on('close', () => stream.destroy());
+        stream.on('error', () => {
+          if (!res.headersSent) {
+            res.statusCode = 500;
+          }
+          res.end();
+        });
+        stream.pipe(res);
       } else {
         res.statusCode = 200;
         res.setHeader('Content-Length', stat.size);
-        fs.createReadStream(localFile).pipe(res);
+        const stream = fs.createReadStream(localFile);
+        req.on('close', () => stream.destroy());
+        stream.on('error', () => {
+          if (!res.headersSent) {
+            res.statusCode = 500;
+          }
+          res.end();
+        });
+        stream.pipe(res);
       }
       return;
     }
