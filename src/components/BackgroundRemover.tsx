@@ -17,6 +17,7 @@ import {
   applyBrushStroke,
   compositeMaskToRgba,
 } from '../lib/ai/mask-refinement';
+import { planBackgroundRemovalFromPrompt } from '../lib/workflow/bg-prompt-planner';
 
 function formatBytes(bytes?: number): string {
   if (!bytes || bytes <= 0) return '';
@@ -74,6 +75,9 @@ export default function BackgroundRemover() {
     result,
     selectedModelId,
     subjectCategory,
+    systemPrompt,
+    userPrompt,
+    promptPlanNote,
     previewBg,
     customBgColor,
     progress,
@@ -82,6 +86,10 @@ export default function BackgroundRemover() {
     setSource,
     setModelId,
     setSubjectCategory,
+    setSystemPrompt,
+    resetSystemPrompt,
+    setUserPrompt,
+    setPromptPlanNote,
     setPreviewBg,
     setCustomBgColor,
     setProgress,
@@ -97,6 +105,7 @@ export default function BackgroundRemover() {
   const [isCached, setIsCached] = useState<boolean>(false);
   const [activeStep, setActiveStep] = useState<number>(1);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const [showSystemPrompt, setShowSystemPrompt] = useState<boolean>(false);
 
   const workerClient = useWorkerClient();
   const isProcessingRef = useRef<boolean>(false);
@@ -157,10 +166,29 @@ export default function BackgroundRemover() {
   const handleSelectSubject = (opt: SubjectGuidanceOption) => {
     setSubjectCategory(opt.id);
     setModelId(opt.recommendedModel);
+    setPromptPlanNote(null);
+  };
+
+  // Apply LangChain System + Subject Prompt routing
+  const handleApplyPromptPlan = async () => {
+    const plan = await planBackgroundRemovalFromPrompt({
+      systemPrompt,
+      userPrompt,
+      fallbackModelId: selectedModelId,
+      fallbackSubjectCategory: subjectCategory,
+    });
+    setModelId(plan.modelId);
+    setSubjectCategory(plan.subjectCategory);
+    setRefinement({
+      threshold: plan.threshold,
+      edgeSoftness: plan.edgeSoftness,
+    });
+    setPromptPlanNote(plan.reasoning);
+    return plan;
   };
 
   // Redraws refined image from working mask, threshold, and edge softness
-  const renderRefinedOutput = useCallback(async () => {
+  const renderRefinedOutput = useCallback(async (overrideSettings?: { threshold?: number; edgeSoftness?: number }) => {
     if (!sourcePixelsRef.current || !workingMaskRef.current || !result || !canvasRef.current) {
       return;
     }
@@ -170,12 +198,15 @@ export default function BackgroundRemover() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const effectiveThreshold = overrideSettings?.threshold ?? refinement.threshold;
+    const effectiveSoftness = overrideSettings?.edgeSoftness ?? refinement.edgeSoftness;
+
     // 1. Threshold
-    let currentMask = applyMaskThreshold(workingMaskRef.current, refinement.threshold);
+    let currentMask = applyMaskThreshold(workingMaskRef.current, effectiveThreshold);
 
     // 2. Edge Softness
-    if (refinement.edgeSoftness > 0) {
-      currentMask = applyEdgeSoftness(currentMask, width, height, refinement.edgeSoftness);
+    if (effectiveSoftness > 0) {
+      currentMask = applyEdgeSoftness(currentMask, width, height, effectiveSoftness);
     }
 
     // 3. Composite with original pixels
@@ -225,10 +256,36 @@ export default function BackgroundRemover() {
       return;
     }
 
+    // Evaluate LangChain System + User prompt if user entered instructions or custom directives
+    let activeModelId = selectedModelId;
+    let plannedThreshold = refinement.threshold;
+    let plannedEdgeSoftness = refinement.edgeSoftness;
+
+    if (userPrompt.trim() || systemPrompt.trim() !== '') {
+      const plan = await planBackgroundRemovalFromPrompt({
+        systemPrompt,
+        userPrompt,
+        fallbackModelId: selectedModelId,
+        fallbackSubjectCategory: subjectCategory,
+      });
+      activeModelId = plan.modelId;
+      plannedThreshold = plan.threshold;
+      plannedEdgeSoftness = plan.edgeSoftness;
+      if (plan.modelId !== selectedModelId) {
+        setModelId(plan.modelId);
+      }
+      if (plan.subjectCategory !== subjectCategory) {
+        setSubjectCategory(plan.subjectCategory);
+      }
+      if (userPrompt.trim()) {
+        setPromptPlanNote(plan.reasoning);
+      }
+    }
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const selectedMeta = MODELS.find((m) => m.id === selectedModelId);
+    const selectedMeta = MODELS.find((m) => m.id === activeModelId);
     setStatus('processing');
     setError(null);
     setProgress({
@@ -261,7 +318,7 @@ export default function BackgroundRemover() {
       let res;
       try {
         res = await workerClient.removeBackground(
-          selectedModelId,
+          activeModelId,
           source.width,
           source.height,
           pixelBuffer,
@@ -277,7 +334,7 @@ export default function BackgroundRemover() {
         );
       } catch (workerErr) {
         // Automatic fallback: if BiRefNet-lite encounters memory/initialization error, degrade to MODNet
-        if (selectedModelId === 'birefnet-lite' && !controller.signal.aborted) {
+        if (activeModelId === 'birefnet-lite' && !controller.signal.aborted) {
           console.warn('[BackgroundRemover] BiRefNet-lite failed. Falling back to MODNet...', workerErr);
           setModelId('modnet');
           setProgress({ stage: 'initializing', percent: 20 });
@@ -304,10 +361,29 @@ export default function BackgroundRemover() {
       }
 
       // Store raw masks for zero-latency adjustments
+      let initialDisplayPixels: Uint8ClampedArray = new Uint8ClampedArray(res.pixels);
+      let initialDisplayMask: Uint8ClampedArray | undefined = res.mask
+        ? new Uint8ClampedArray(res.mask)
+        : undefined;
+
       if (res.mask) {
         const maskArr = new Uint8ClampedArray(res.mask);
         baseMaskRef.current = new Uint8ClampedArray(maskArr);
         workingMaskRef.current = new Uint8ClampedArray(maskArr);
+
+        // Apply prompt-planned threshold / softness if configured
+        if (plannedThreshold > 0 || plannedEdgeSoftness > 0) {
+          let adjustedMask = applyMaskThreshold(maskArr, plannedThreshold);
+          if (plannedEdgeSoftness > 0) {
+            adjustedMask = applyEdgeSoftness(adjustedMask, res.width, res.height, plannedEdgeSoftness);
+          }
+          initialDisplayMask = adjustedMask;
+          if (sourcePixelsRef.current) {
+            initialDisplayPixels = new Uint8ClampedArray(
+              compositeMaskToRgba(sourcePixelsRef.current, adjustedMask, res.width, res.height),
+            );
+          }
+        }
       }
 
       // Draw initial result onto canvas
@@ -317,7 +393,7 @@ export default function BackgroundRemover() {
       const outCtx = outCanvas.getContext('2d');
       if (!outCtx) throw new Error('Could not acquire output canvas context.');
 
-      const outImageData = new ImageData(new Uint8ClampedArray(res.pixels), res.width, res.height);
+      const outImageData = new ImageData(initialDisplayPixels as any, res.width, res.height);
       outCtx.putImageData(outImageData, 0, 0);
 
       const blob = await new Promise<Blob | null>((resolve) =>
@@ -331,12 +407,16 @@ export default function BackgroundRemover() {
         url,
         width: res.width,
         height: res.height,
-        mask: res.mask ? new Uint8ClampedArray(res.mask) : undefined,
+        mask: initialDisplayMask,
         durationMs: res.durationMs,
       });
 
       setIsCached(true);
-      resetRefinement();
+      setRefinement({
+        threshold: plannedThreshold,
+        edgeSoftness: plannedEdgeSoftness,
+        brushMode: 'none',
+      });
     } catch (err) {
       if (err instanceof Error && err.message === 'Operation cancelled') {
         setStatus('idle');
@@ -421,7 +501,7 @@ export default function BackgroundRemover() {
     if (baseMaskRef.current && workingMaskRef.current) {
       workingMaskRef.current.set(baseMaskRef.current);
       resetRefinement();
-      renderRefinedOutput();
+      renderRefinedOutput({ threshold: 0, edgeSoftness: 0 });
     }
   };
 
@@ -586,6 +666,96 @@ export default function BackgroundRemover() {
               BiRefNet-lite (~114 MB)
             </button>
           </div>
+        </div>
+
+        {/* LangChain System & Subject Prompt Section */}
+        <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-indigo-300">
+                🦜️🔗 Subject Prompt & System Prompt
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-800/70 text-indigo-300">
+                LangChain On-Device
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSystemPrompt((prev) => !prev)}
+              disabled={isWorking}
+              className="text-xs text-slate-400 hover:text-indigo-300 underline transition-colors"
+            >
+              {showSystemPrompt ? 'Hide System Prompt' : 'Edit System Prompt'}
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={userPrompt}
+              onChange={(e) => setUserPrompt(e.target.value)}
+              disabled={isWorking}
+              placeholder="Describe what to keep/remove (e.g. 'Keep the stone arch and pillars, remove sky')"
+              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={handleApplyPromptPlan}
+              disabled={isWorking}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-medium text-indigo-300 border border-slate-700 rounded-lg transition-colors whitespace-nowrap"
+            >
+              Apply Prompt Plan
+            </button>
+          </div>
+
+          {showSystemPrompt && (
+            <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                  System Prompt (ChatPromptTemplate)
+                </label>
+                <button
+                  type="button"
+                  onClick={resetSystemPrompt}
+                  disabled={isWorking}
+                  className="text-[11px] text-slate-400 hover:text-slate-200 underline"
+                >
+                  Reset Default
+                </button>
+              </div>
+              <textarea
+                rows={5}
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                disabled={isWorking}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500 leading-relaxed"
+              />
+              <p className="text-[11px] text-slate-500">
+                Supports directives such as <code className="text-slate-400">always use birefnet-lite</code>,{' '}
+                <code className="text-slate-400">threshold: 20</code>, or{' '}
+                <code className="text-slate-400">edgeSoftness: 2</code>.
+              </p>
+            </div>
+          )}
+
+          {promptPlanNote && (
+            <div className="px-3 py-2 bg-indigo-950/40 border border-indigo-800/50 rounded text-xs text-indigo-200 flex items-center justify-between gap-2">
+              <span>
+                <strong>Applied Plan:</strong> {promptPlanNote}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPromptPlanNote(null)}
+                className="text-[11px] text-indigo-400 hover:text-white underline shrink-0"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
+          <p className="text-[11px] text-slate-500">
+            Routes subject instructions locally via LangChain to choose the best vision model &amp; refinement settings without sending pixels or prompts off-device.
+          </p>
         </div>
       </div>
 

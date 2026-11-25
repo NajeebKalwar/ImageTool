@@ -38,7 +38,7 @@ describe('AI Registry', () => {
     const modnet = getModelMetadata('modnet');
     expect(modnet).toBeDefined();
     expect(modnet?.repo).toBe('Xenova/modnet');
-    expect(modnet?.pipeline).toBe('image-segmentation');
+    expect(modnet?.pipeline).toBe('background-removal');
 
     const unknown = getModelMetadata('unknown-model');
     expect(unknown).toBeUndefined();

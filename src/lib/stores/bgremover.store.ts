@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { DEFAULT_BG_REMOVER_SYSTEM_PROMPT } from '../workflow/bg-prompt-planner';
 
 export type BackgroundRemoverStatus = 'idle' | 'loading-model' | 'processing' | 'done' | 'error';
 export type PreviewBgMode = 'transparent' | 'white' | 'black' | 'custom';
@@ -48,6 +49,9 @@ interface BackgroundRemoverState {
   result: BackgroundResultMeta | null;
   selectedModelId: 'modnet' | 'birefnet-lite';
   subjectCategory: SubjectCategory;
+  systemPrompt: string;
+  userPrompt: string;
+  promptPlanNote: string | null;
   previewBg: PreviewBgMode;
   customBgColor: string;
   progress: BackgroundProgressState;
@@ -58,6 +62,10 @@ interface BackgroundRemoverState {
   setSource: (source: SourceImageMeta | null) => void;
   setModelId: (modelId: 'modnet' | 'birefnet-lite') => void;
   setSubjectCategory: (category: SubjectCategory) => void;
+  setSystemPrompt: (systemPrompt: string) => void;
+  resetSystemPrompt: () => void;
+  setUserPrompt: (userPrompt: string) => void;
+  setPromptPlanNote: (note: string | null) => void;
   setPreviewBg: (mode: PreviewBgMode) => void;
   setCustomBgColor: (color: string) => void;
   setProgress: (progress: Partial<BackgroundProgressState>) => void;
@@ -75,6 +83,9 @@ export const useBackgroundRemoverStore = create<BackgroundRemoverState>((set) =>
   result: null,
   selectedModelId: 'modnet',
   subjectCategory: 'auto',
+  systemPrompt: DEFAULT_BG_REMOVER_SYSTEM_PROMPT,
+  userPrompt: '',
+  promptPlanNote: null,
   previewBg: 'transparent',
   customBgColor: '#3b82f6',
   progress: { stage: 'idle', percent: 0 },
@@ -102,6 +113,14 @@ export const useBackgroundRemoverStore = create<BackgroundRemoverState>((set) =>
   setModelId: (selectedModelId) => set({ selectedModelId }),
 
   setSubjectCategory: (subjectCategory) => set({ subjectCategory }),
+
+  setSystemPrompt: (systemPrompt) => set({ systemPrompt }),
+
+  resetSystemPrompt: () => set({ systemPrompt: DEFAULT_BG_REMOVER_SYSTEM_PROMPT }),
+
+  setUserPrompt: (userPrompt) => set({ userPrompt }),
+
+  setPromptPlanNote: (promptPlanNote) => set({ promptPlanNote }),
 
   setPreviewBg: (previewBg) => set({ previewBg }),
 
