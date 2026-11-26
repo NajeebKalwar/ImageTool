@@ -85,6 +85,10 @@ describe('Background Removal Engine', () => {
       expect(result[13]).toBe(100);
       expect(result[14]).toBe(100);
       expect(result[15]).toBe(255);
+      expect(source[3]).toBe(255);
+      expect(source[7]).toBe(255);
+      expect(source[11]).toBe(255);
+      expect(source[15]).toBe(255);
     });
 
     it('correctly handles 4-channel RGBA masks', () => {

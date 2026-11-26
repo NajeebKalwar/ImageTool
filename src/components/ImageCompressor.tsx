@@ -167,227 +167,244 @@ export default function ImageCompressor() {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto my-6 p-4 sm:p-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-xl space-y-6">
-      {/* Privacy Guarantee Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-950/80 border border-slate-800 rounded-lg text-xs sm:text-sm">
-        <div className="flex items-center gap-2 text-emerald-400 font-medium">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-          <span>P-01 to P-04 Verified: 100% On-Device Compression. Zero Network Bytes Uploaded.</span>
-        </div>
-        <span className="text-slate-400">Web Worker Engine</span>
-      </div>
-
+    <div className="w-full max-w-5xl mx-auto space-y-5">
       {error && (
-        <div className="p-3 bg-rose-950/80 border border-rose-800 rounded-lg text-rose-200 text-sm">
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm shadow-2xs">
           {error}
         </div>
       )}
 
-      {/* File Dropzone */}
-      {!source ? (
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label="Upload an image to compress"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
-          }}
-          className="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-10 text-center transition-colors cursor-pointer bg-slate-950/40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              fileInputRef.current?.click();
-            }
-          }}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/avif"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files?.[0]) handleFile(e.target.files[0]);
-            }}
-          />
-          <div className="mx-auto w-12 h-12 mb-3 text-indigo-400">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </div>
-          <p className="text-base font-semibold text-slate-200">
-            Choose an image to compress and reduce file size
-          </p>
-          <p className="text-xs text-slate-400 mt-1">
-            Drag and drop or browse • PNG, JPEG, WebP, AVIF up to 50 MB
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* File Overview Card */}
-          <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="font-semibold text-sm text-slate-200">{source.file.name}</div>
-              <div className="text-xs text-slate-400 mt-0.5">
-                Dimensions: <strong className="text-slate-300">{source.width} × {source.height} px</strong> • Original Size: <strong className="text-slate-300">{formatBytes(source.sizeBytes)}</strong>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* LEFT COLUMN: Dropzone, Uploaded File Card & Results */}
+        <div className="lg:col-span-7 space-y-4">
+          {!source ? (
+            <div className="bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-4 shadow-2xs">
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="Upload an image to compress"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
+                }}
+                className="border-[1.5px] border-dashed border-slate-300 hover:border-blue-400 rounded-lg py-14 px-6 text-center transition-colors cursor-pointer bg-[#f8f9fc] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/avif"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) handleFile(e.target.files[0]);
+                  }}
+                />
+                <p className="text-sm font-medium text-slate-700 mb-2">Drag file here</p>
+                <p className="text-xs text-slate-400 mb-3">or</p>
+                <span className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 hover:border-blue-500 text-slate-800 text-xs font-semibold rounded-lg shadow-2xs transition-colors">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12" />
+                  </svg>
+                  Choose file
+                </span>
+                <p className="text-[11px] text-slate-500 mt-4">
+                  PNG, JPEG, WebP, AVIF up to 50 MB • Zero cloud uploads
+                </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSource(null);
-                setResult(null);
-              }}
-              className="text-xs text-slate-400 hover:text-rose-400 underline transition-colors"
-            >
-              Choose different image
-            </button>
+          ) : (
+            <div className="space-y-4">
+              {/* Uploaded Image Card */}
+              <div className="bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-4 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span>Uploaded image (1)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSource(null);
+                      setResult(null);
+                    }}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    Change file
+                  </button>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-lg p-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={source.previewUrl}
+                      alt={source.file.name}
+                      className="w-11 h-11 rounded-md object-cover border border-slate-200 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-900 truncate">{source.file.name}</p>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                        {source.width} × {source.height} px • Original: {formatBytes(source.sizeBytes)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSource(null);
+                      setResult(null);
+                    }}
+                    aria-label="Remove uploaded image"
+                    className="p-1.5 text-slate-400 hover:text-slate-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Compression Result Card */}
+              {result && (
+                <div aria-live="polite" className="bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-5 shadow-2xs space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="font-bold text-sm text-slate-900">Compression Complete</span>
+                      <span className="text-xs text-slate-500 font-mono">({result.elapsedMs} ms)</span>
+                    </div>
+                    <div className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs">
+                      {result.reductionPercent > 0 ? `Saved ${result.reductionPercent}%` : 'Lossless compression'}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 p-3.5 bg-white border border-slate-200/80 rounded-lg text-center">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wider text-slate-500">Original</div>
+                      <div className="text-base font-bold text-slate-900 mt-0.5">{formatBytes(source.sizeBytes)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wider text-emerald-700">Compressed</div>
+                      <div className="text-base font-bold text-emerald-700 mt-0.5">{formatBytes(result.sizeBytes)}</div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={downloadResult}
+                    className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 font-semibold text-white text-sm shadow-xs transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>
+                      Download Compressed {result.format === 'image/webp' ? 'WebP' : result.format === 'image/jpeg' ? 'JPEG' : 'PNG'} ({formatBytes(result.sizeBytes)})
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT COLUMN: Compression Settings & Primary CTA */}
+        <div className="lg:col-span-5 bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-5 shadow-2xs space-y-4">
+          <h2 className="text-base font-bold text-slate-900">Compression settings</h2>
+
+          <div className="space-y-1.5">
+            <span className="text-xs font-medium text-slate-500 block">Preset Level</span>
+            {[
+              { id: 'balanced', label: 'Balanced (80% • Web)' },
+              { id: 'high', label: 'High Quality (90%)' },
+              { id: 'aggressive', label: 'Max Savings (55%)' },
+              { id: 'custom', label: 'Custom Quality' },
+            ].map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handlePresetChange(p.id as any)}
+                className={`w-full px-3.5 py-2 rounded-lg text-left text-xs transition-colors ${
+                  preset === p.id
+                    ? 'bg-slate-200/80 text-blue-600 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
 
-          {/* Compression Configuration Toolbar */}
-          <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-xl space-y-5">
-            {/* Compression Presets */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Compression Level
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {[
-                  { id: 'balanced', label: 'Balanced (80%)', desc: 'Recommended for Web' },
-                  { id: 'high', label: 'High Quality (90%)', desc: 'Minimal Artifacts' },
-                  { id: 'aggressive', label: 'Max Savings (55%)', desc: 'Smallest File Size' },
-                  { id: 'custom', label: 'Custom', desc: 'Manual Slider' },
-                ].map((p) => (
+          <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-600 font-medium">Output Quality</span>
+              <span className="font-mono font-semibold text-blue-600">{quality}%</span>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              step="1"
+              value={quality}
+              onChange={(e) => {
+                setQuality(parseInt(e.target.value, 10));
+                setPreset('custom');
+              }}
+              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              aria-label="Compression quality slider"
+            />
+          </div>
+
+          <div className="pt-2 border-t border-slate-200/80 space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 block">Output format</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(['image/webp', 'image/jpeg', 'image/png'] as const).map((fmt) => (
                   <button
-                    key={p.id}
+                    key={fmt}
                     type="button"
-                    onClick={() => handlePresetChange(p.id as any)}
-                    className={`p-2.5 rounded-lg border text-left transition-all ${
-                      preset === p.id
-                        ? 'bg-indigo-950/80 border-indigo-500 text-slate-100 shadow-md'
-                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                    onClick={() => setTargetFormat(fmt)}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold text-center transition-colors ${
+                      targetFormat === fmt
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                     }`}
                   >
-                    <div className="font-bold text-xs">{p.label}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{p.desc}</div>
+                    {fmt === 'image/webp' ? 'WebP' : fmt === 'image/jpeg' ? 'JPEG' : 'PNG'}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Quality Slider (visible if custom or for fine tuning) */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs text-slate-300">
-                <span>Output Quality Level</span>
-                <span className="font-semibold text-indigo-400">{quality}%</span>
-              </div>
+            <div className="space-y-1">
+              <label htmlFor="max-width-input" className="text-xs font-medium text-slate-600 block">
+                Max Width (Optional)
+              </label>
               <input
-                type="range"
-                min="10"
-                max="100"
-                step="1"
-                value={quality}
-                onChange={(e) => {
-                  setQuality(parseInt(e.target.value, 10));
-                  setPreset('custom');
-                }}
-                className="w-full accent-indigo-500 cursor-pointer"
-                aria-label="Compression quality slider"
+                id="max-width-input"
+                type="number"
+                placeholder="Original width (e.g. 1920)"
+                value={maxWidth}
+                onChange={(e) => setMaxWidth(e.target.value ? parseInt(e.target.value, 10) : '')}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
               />
             </div>
-
-            {/* Target Format & Optional Max Width */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">
-                  Target Format
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['image/webp', 'image/jpeg', 'image/png'] as const).map((fmt) => (
-                    <button
-                      key={fmt}
-                      type="button"
-                      onClick={() => setTargetFormat(fmt)}
-                      className={`py-1.5 px-2 rounded-lg border text-xs font-semibold text-center transition-all ${
-                        targetFormat === fmt
-                          ? 'bg-indigo-950 border-indigo-500 text-indigo-300'
-                          : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                      }`}
-                    >
-                      {fmt === 'image/webp' ? 'WebP (Best)' : fmt === 'image/jpeg' ? 'JPEG' : 'PNG'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="max-width-input" className="text-xs font-semibold text-slate-300">
-                  Max Width (Optional Downscale)
-                </label>
-                <input
-                  id="max-width-input"
-                  type="number"
-                  placeholder="e.g. 1920 (leave empty for original)"
-                  value={maxWidth}
-                  onChange={(e) => setMaxWidth(e.target.value ? parseInt(e.target.value, 10) : '')}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleCompress}
-              disabled={isProcessing}
-              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 font-semibold text-white shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2"
-            >
-              {isProcessing ? 'Compressing locally in worker...' : 'Compress Image Now'}
-            </button>
           </div>
 
-          {/* Results Comparison Card */}
-          {result && (
-            <div aria-live="polite" className="p-5 bg-slate-950/80 border border-emerald-900/60 rounded-xl space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                  <span className="font-bold text-sm text-slate-100">Compression Complete</span>
-                  <span className="text-xs text-slate-400">({result.elapsedMs}ms)</span>
-                </div>
-                <div className="px-3 py-1 rounded-full bg-emerald-950 border border-emerald-700/80 text-emerald-300 font-bold text-xs">
-                  {result.reductionPercent > 0 ? `Saved ${result.reductionPercent}%` : 'Lossless compression'}
-                </div>
-              </div>
+          <button
+            type="button"
+            onClick={handleCompress}
+            disabled={!source || isProcessing}
+            className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed font-semibold text-sm text-white shadow-xs transition-colors"
+          >
+            {isProcessing ? 'Compressing…' : 'Compress Image'}
+          </button>
 
-              <div className="grid grid-cols-2 gap-4 p-3 bg-slate-900/80 rounded-lg text-center">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wider text-slate-400">Original</div>
-                  <div className="text-base font-bold text-slate-200 mt-0.5">{formatBytes(source.sizeBytes)}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wider text-emerald-400">Compressed</div>
-                  <div className="text-base font-bold text-emerald-300 mt-0.5">{formatBytes(result.sizeBytes)}</div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={downloadResult}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-white shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>Download Compressed {result.format === 'image/webp' ? 'WebP' : result.format === 'image/jpeg' ? 'JPEG' : 'PNG'} ({formatBytes(result.sizeBytes)})</span>
-              </button>
-            </div>
-          )}
+          <p className="text-[11px] text-slate-500 text-center">
+            P-01 to P-04 Verified • Zero Network Uploads
+          </p>
         </div>
-      )}
+      </div>
     </div>
   );
 }

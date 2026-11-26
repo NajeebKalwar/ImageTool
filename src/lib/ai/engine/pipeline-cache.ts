@@ -29,6 +29,8 @@ export interface LoadedPipelineEntry {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   instance: any;
   lastUsed: number;
+  /** Dtype selected for the backend that actually loaded this pipeline. */
+  dtype?: string;
 }
 
 const MAX_CACHED_PIPELINES = 2;
@@ -178,7 +180,12 @@ export async function getPipeline(
     backend: usedBackend,
     instance: loadedInstance,
     lastUsed: Date.now(),
+    dtype: usedBackend === 'webgpu' ? model.dtype.webgpu : model.dtype.wasm,
   };
+
+  console.info(
+    `[pipeline-cache] Ready: model=${modelId} backend=${usedBackend} dtype=${entry.dtype}`,
+  );
 
   pipelineCache.set(modelId, entry);
   return entry;

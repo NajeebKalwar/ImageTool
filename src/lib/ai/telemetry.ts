@@ -9,6 +9,7 @@ export interface AiExecutionMetric {
   task: 'background-removal' | 'upscaling';
   modelId: string;
   backend: 'webgpu' | 'wasm';
+  dtype?: string;
   width: number;
   height: number;
   megapixels: number;
@@ -21,7 +22,8 @@ export interface AiExecutionMetric {
 
 export function logAiExecution(metric: AiExecutionMetric): void {
   const timestamp = new Date().toISOString();
-  const summary = `[AI Telemetry] ${metric.task} | model=${metric.modelId} | backend=${metric.backend} | ` +
+  const summary = `[AI Telemetry] ${metric.task} | model=${metric.modelId} | backend=${metric.backend}` +
+    (metric.dtype ? ` dtype=${metric.dtype}` : '') + ' | ' +
     `${metric.width}x${metric.height} (${metric.megapixels.toFixed(2)} MP) | ` +
     `${metric.durationMs.toFixed(0)}ms | success=${metric.success}` +
     (metric.fallbackTriggered ? ' | fallback=true' : '') +

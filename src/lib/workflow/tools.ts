@@ -36,7 +36,7 @@ export function createRemoveBackgroundTool(context: ToolExecutionContext) {
     schema: z.object({
       modelId: z
         .enum(['modnet', 'birefnet-lite'])
-        .default('modnet')
+        .default('birefnet-lite')
         .describe('Model architecture: modnet (fastest ~12MB) or birefnet-lite (highest detail ~114MB)'),
     }),
     func: async ({ modelId }) => {

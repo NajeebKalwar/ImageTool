@@ -32,6 +32,16 @@ describe('LangChain Background Remover System Prompt Planner', () => {
     expect(plan.reasoning).toContain('BiRefNet-lite');
   });
 
+  it('defaults an ambiguous prompt to birefnet-lite', async () => {
+    const plan = await planBackgroundRemovalFromPrompt({
+      systemPrompt: DEFAULT_BG_REMOVER_SYSTEM_PROMPT,
+      userPrompt: '',
+    });
+
+    expect(plan.modelId).toBe('birefnet-lite');
+    expect(plan.reasoning).toContain('BiRefNet-lite');
+  });
+
   it('routes portrait prompt with soft edges to modnet and feathering', async () => {
     const plan = await planBackgroundRemovalFromPrompt({
       systemPrompt: DEFAULT_BG_REMOVER_SYSTEM_PROMPT,

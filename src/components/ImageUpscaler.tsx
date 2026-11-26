@@ -227,258 +227,276 @@ export default function ImageUpscaler() {
   const displayError = error || fileError;
 
   return (
-    <div className="w-full max-w-4xl mx-auto my-6 p-4 sm:p-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-xl">
-      {/* Privacy & Hardware Capabilities Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 p-3 bg-slate-950/80 border border-slate-800 rounded-lg">
-        <div className="flex items-center gap-2 text-emerald-300 text-xs sm:text-sm font-medium">
-          <svg className="w-4 h-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-          <span>
-            <strong>100% On-Device AI:</strong> Super-resolution executes locally in your browser. Zero image data is sent to external servers.
-          </span>
-        </div>
-
-        {deviceCaps && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-950/70 border border-indigo-700/60 rounded text-xs font-semibold text-indigo-300">
-            <span>{deviceCaps.hasWebGPU ? '⚡ WebGPU' : '⚙️ WASM Fallback'}</span>
-          </div>
-        )}
-      </div>
-
+    <div className="w-full max-w-5xl mx-auto space-y-5">
       {displayError && (
-        <div className="mb-6 p-3 bg-rose-950/80 border border-rose-800 rounded-lg text-rose-200 text-sm">
-          {displayError}
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm flex items-start justify-between shadow-2xs">
+          <span>{displayError}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-xs font-medium text-rose-600 hover:text-rose-800 ml-3 underline shrink-0"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
-      {/* Scale & Model Selection Toolbar */}
-      <div className="mb-6 p-4 bg-slate-950/50 border border-slate-800 rounded-lg space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-            Target Scale & Model
-          </span>
-          <div className="text-xs text-slate-400">
-            Status: {isCached ? (
-              <span className="text-emerald-400 font-medium">💾 Cached in Browser (Offline Ready)</span>
-            ) : (
-              <span className="text-amber-300 font-medium">⬇️ Download Required on First Run</span>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setScale(2)}
-            disabled={isWorking}
-            className={`text-left p-3 rounded-lg border transition-all ${
-              scale === 2
-                ? 'bg-indigo-950/60 border-indigo-500 shadow-sm shadow-indigo-500/20'
-                : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm text-slate-100">2× Upscale (Fast)</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Swin2SR Lightweight</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Ultra-lightweight super-resolution for quick 2x doubling with low memory overhead.
-            </p>
-            <div className="flex gap-4 text-[11px] text-slate-500 mt-2">
-              <span>Download: ~7.5 MB</span>
-              <span>Fastest</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setScale(4)}
-            disabled={isWorking}
-            className={`text-left p-3 rounded-lg border transition-all ${
-              scale === 4
-                ? 'bg-indigo-950/60 border-indigo-500 shadow-sm shadow-indigo-500/20'
-                : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm text-slate-100">4× Upscale (HD Detail)</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Swin2SR RealWorld</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Deep transformer reconstruction trained on real-world photos with BSRGAN artifacts.
-            </p>
-            <div className="flex gap-4 text-[11px] text-slate-500 mt-2">
-              <span>Download: ~31 MB</span>
-              <span>Maximum Detail</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Upload Zone / Workspace */}
-      {!source ? (
-        <div
-          {...dropZoneProps}
-          onClick={openFileDialog}
-          className="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-8 sm:p-12 text-center cursor-pointer transition-colors bg-slate-950/40"
-        >
-          <input {...fileInputProps} />
-          <svg className="w-12 h-12 mx-auto text-slate-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-base font-medium text-slate-200 mb-1">
-            Drop an image here, or <span className="text-indigo-400 underline">browse</span>
-          </p>
-          <p className="text-xs text-slate-400">Supports PNG, JPEG, WebP up to 50 MB</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Comparison / Preview View */}
-          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
-            <div className="flex justify-between items-center mb-3">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  {result ? 'Comparison Slider (Drag to Compare)' : 'Source Preview'}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {source.width} × {source.height} px
-                  {result ? ` → ${result.width} × ${result.height} px (${scale}×)` : ` (${scale}× target)`}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={reset}
-                disabled={isWorking}
-                className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
-              >
-                Change Image
-              </button>
-            </div>
-
-            {result ? (
-              /* High-Performance 60fps Split Slider using pure CSS var(--split) */
+      {/* Two-Column SaaS Studio Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* LEFT COLUMN: Upload Dropzone & Comparison Preview */}
+        <div className="lg:col-span-7 space-y-4">
+          {!source ? (
+            <div className="bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-4 shadow-2xs">
               <div
-                ref={containerRef}
-                {...sliderProps}
-                className="relative aspect-video max-h-[500px] w-full rounded overflow-hidden select-none cursor-ew-resize bg-slate-950"
-                style={{ ['--split' as string]: '50%' }}
+                {...dropZoneProps}
+                onClick={openFileDialog}
+                className="border-[1.5px] border-dashed border-slate-300 hover:border-blue-400 rounded-lg py-14 px-6 text-center cursor-pointer transition-colors bg-[#f8f9fc]"
               >
-                {/* Result image (Full base) */}
-                <img
-                  src={result.url}
-                  alt="Upscaled output"
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                />
-
-                {/* Original image (Clipped to split left) */}
-                <div
-                  className="absolute inset-0 overflow-hidden pointer-events-none"
-                  style={{ width: 'var(--split)' }}
-                >
-                  <img
-                    src={source.previewUrl}
-                    alt="Original source"
-                    className="absolute inset-0 max-w-none w-full h-full object-contain pointer-events-none"
-                  />
+                <input {...fileInputProps} />
+                <p className="text-sm font-medium text-slate-700 mb-2">Drag file here</p>
+                <p className="text-xs text-slate-400 mb-3">or</p>
+                <span className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 hover:border-blue-500 text-slate-800 text-xs font-semibold rounded-lg shadow-2xs transition-colors">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12" />
+                  </svg>
+                  Choose file
+                </span>
+                <p className="text-[11px] text-slate-500 mt-4">
+                  PNG, JPEG, WebP up to 50 MB • Super-resolution 100% on-device
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Uploaded Image Summary Card */}
+              <div className="bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-4 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span>Uploaded image (1)</span>
+                  <button
+                    type="button"
+                    onClick={reset}
+                    disabled={isWorking}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                  >
+                    Change file
+                  </button>
                 </div>
-
-                {/* Vertical Divider line */}
-                <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(0,0,0,0.8)] pointer-events-none"
-                  style={{ left: 'var(--split)' }}
-                >
-                  <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-7 h-7 bg-white text-slate-900 rounded-full shadow-md flex items-center justify-center text-xs font-bold">
-                    ↔
+                <div className="bg-white border border-slate-200/80 rounded-lg p-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={source.previewUrl}
+                      alt={source.file.name}
+                      className="w-11 h-11 rounded-md object-cover border border-slate-200 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-900 truncate">{source.file.name}</p>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                        {source.width} × {source.height} px
+                        {result ? ` → ${result.width} × ${result.height} px (${scale}×)` : ` (${scale}× target)`}
+                      </p>
+                    </div>
                   </div>
-                </div>
-
-                {/* Labels */}
-                <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur rounded text-[11px] text-white pointer-events-none">
-                  Original ({source.width}×{source.height})
-                </div>
-                <div className="absolute bottom-2 right-2 px-2 py-1 bg-indigo-900/80 backdrop-blur rounded text-[11px] text-white pointer-events-none">
-                  Upscaled {scale}× ({result.width}×{result.height})
+                  <button
+                    type="button"
+                    onClick={reset}
+                    disabled={isWorking}
+                    aria-label="Remove uploaded image"
+                    className="p-1.5 text-slate-400 hover:text-slate-700 disabled:opacity-50"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
-            ) : (
-              /* Single Preview when result is not yet available */
-              <div className="relative aspect-video max-h-[400px] w-full rounded overflow-hidden flex items-center justify-center bg-slate-950">
-                <img
-                  src={source.previewUrl}
-                  alt="Source"
-                  className="max-w-full max-h-full object-contain"
-                />
 
-                {isWorking && (
-                  <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 space-y-4">
-                    <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                    <div className="text-center space-y-1">
-                      <p className="text-sm font-semibold text-slate-100">
-                        {progress.stage === 'downloading'
-                          ? 'Downloading AI model weights…'
-                          : progress.stage === 'tiling'
-                            ? `Processing Tile ${progress.currentTile ?? 0} of ${progress.totalTiles ?? 1}…`
-                            : progress.stage === 'blending'
-                              ? 'Stitching tiles and blending seams…'
-                              : 'Preparing AI model weights…'}
-                      </p>
-                      {progress.stage === 'downloading' && progress.loadedBytes && progress.totalBytes ? (
-                        <p className="text-xs text-slate-400 font-mono">
-                          {formatBytes(progress.loadedBytes)} / {formatBytes(progress.totalBytes)} ({progress.percent}%)
-                        </p>
-                      ) : progress.stage === 'downloading' && progress.totalBytes ? (
-                        <p className="text-xs text-slate-400 font-mono">
-                          Connecting… ~{formatBytes(progress.totalBytes)}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-indigo-400 font-mono">
-                          {progress.percent > 0 ? `${progress.percent}% complete` : 'Please wait…'}
-                        </p>
-                      )}
-                    </div>
+              {/* Comparison / Preview Card */}
+              <div className="bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-4 shadow-2xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-slate-700">
+                    {result ? 'Comparison Slider (Drag to Compare)' : 'Source Preview'}
+                  </span>
+                  {result && (
+                    <span className="text-[11px] font-mono text-slate-500">
+                      {Math.round(result.durationMs)} ms
+                    </span>
+                  )}
+                </div>
 
-                    {/* Progress Bar */}
-                    <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-indigo-500 transition-all duration-200"
-                        style={{ width: `${Math.min(100, Math.max(progress.stage === 'downloading' ? progress.percent : 10, progress.percent))}%` }}
+                {result ? (
+                  <div
+                    ref={containerRef}
+                    {...sliderProps}
+                    className="relative aspect-video max-h-[440px] w-full rounded-lg overflow-hidden select-none cursor-ew-resize bg-slate-100 border border-slate-200"
+                    style={{ ['--split' as string]: '50%' }}
+                  >
+                    <img
+                      src={result.url}
+                      alt="Upscaled output"
+                      className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                    />
+                    <div
+                      className="absolute inset-0 overflow-hidden pointer-events-none"
+                      style={{ width: 'var(--split)' }}
+                    >
+                      <img
+                        src={source.previewUrl}
+                        alt="Original source"
+                        className="absolute inset-0 max-w-none w-full h-full object-contain pointer-events-none"
                       />
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={handleCancel}
-                      className="px-4 py-1.5 text-xs text-rose-300 hover:text-rose-200 bg-rose-950/60 border border-rose-800 rounded transition-colors"
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(0,0,0,0.6)] pointer-events-none"
+                      style={{ left: 'var(--split)' }}
                     >
-                      Cancel
-                    </button>
+                      <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-7 h-7 bg-white text-slate-900 rounded-full shadow-md border border-slate-200 flex items-center justify-center text-xs font-bold">
+                        ↔
+                      </div>
+                    </div>
+                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-slate-900/75 backdrop-blur rounded text-[11px] text-white pointer-events-none">
+                      Original ({source.width}×{source.height})
+                    </div>
+                    <div className="absolute bottom-2 right-2 px-2 py-1 bg-blue-600/90 backdrop-blur rounded text-[11px] text-white pointer-events-none">
+                      Upscaled {scale}× ({result.width}×{result.height})
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative aspect-video max-h-[360px] w-full rounded-lg overflow-hidden flex items-center justify-center bg-white border border-slate-200/80">
+                    <img
+                      src={source.previewUrl}
+                      alt="Source"
+                      className="max-w-full max-h-full object-contain"
+                    />
+
+                    {isWorking && (
+                      <div className="absolute inset-0 bg-white/90 backdrop-blur-xs flex flex-col items-center justify-center p-6 space-y-3">
+                        <div className="w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="text-center space-y-1">
+                          <p className="text-xs font-semibold text-slate-900">
+                            {progress.stage === 'downloading'
+                              ? 'Downloading AI model weights…'
+                              : progress.stage === 'tiling'
+                                ? `Processing Tile ${progress.currentTile ?? 0} of ${progress.totalTiles ?? 1}…`
+                                : progress.stage === 'blending'
+                                  ? 'Stitching tiles and blending seams…'
+                                  : 'Preparing AI model weights…'}
+                          </p>
+                          {progress.stage === 'downloading' && progress.loadedBytes && progress.totalBytes ? (
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              {formatBytes(progress.loadedBytes)} / {formatBytes(progress.totalBytes)} ({progress.percent}%)
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-blue-600 font-mono">
+                              {progress.percent > 0 ? `${progress.percent}% complete` : 'Please wait…'}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="w-56 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-600 transition-all duration-200"
+                            style={{ width: `${Math.min(100, Math.max(progress.stage === 'downloading' ? progress.percent : 10, progress.percent))}%` }}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleCancel}
+                          className="px-3 py-1 text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-md"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT COLUMN: Choose Scale, Model Status & Action */}
+        <div className="lg:col-span-5 bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-5 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-base font-bold text-slate-900">Choose scale &amp; model</h2>
+            {deviceCaps && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                {deviceCaps.hasWebGPU ? '⚡ WebGPU' : '⚙️ WASM'}
+              </span>
             )}
           </div>
 
-          {/* Action & Download Bar */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <div className="space-y-1.5">
+            <span className="text-xs font-medium text-slate-500 block">Target Upscale Factor</span>
+            <button
+              type="button"
+              onClick={() => setScale(2)}
+              disabled={isWorking}
+              className={`w-full px-3.5 py-2.5 rounded-lg text-left text-xs transition-all flex items-center justify-between ${
+                scale === 2
+                  ? 'bg-slate-200/80 text-blue-600 font-semibold'
+                  : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <span>2× Upscale (Swin2SR Lightweight)</span>
+              <span className="text-[11px] opacity-80 font-mono">~7.5 MB</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setScale(4)}
+              disabled={isWorking}
+              className={`w-full px-3.5 py-2.5 rounded-lg text-left text-xs transition-all flex items-center justify-between ${
+                scale === 4
+                  ? 'bg-slate-200/80 text-blue-600 font-semibold'
+                  : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <span>4× Upscale (Swin2SR HD Detail)</span>
+              <span className="text-[11px] opacity-80 font-mono">~31 MB</span>
+            </button>
+          </div>
+
+          {result && (
+            <div className="pt-2 border-t border-slate-200/80 space-y-2">
+              <span className="text-xs font-medium text-slate-500 block">Export format</span>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={downloadFormat}
+                  onChange={(e) => setDownloadFormat(e.target.value as SupportedFormat)}
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="image/png">PNG (Lossless)</option>
+                  <option value="image/jpeg">JPEG</option>
+                  <option value="image/webp">WebP</option>
+                </select>
+                {downloadFormat !== 'image/png' && (
+                  <select
+                    value={downloadQuality}
+                    onChange={(e) => setDownloadQuality(parseFloat(e.target.value))}
+                    className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value={0.95}>Quality: 95%</option>
+                    <option value={0.92}>Quality: 92%</option>
+                    <option value={0.85}>Quality: 85%</option>
+                  </select>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2 space-y-2.5">
             {!result ? (
               <button
                 type="button"
                 onClick={handleStartUpscaling}
-                disabled={isWorking || !memoryEstimation?.isSafe}
-                className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                disabled={!source || isWorking || !memoryEstimation?.isSafe}
+                className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors shadow-xs flex items-center justify-center gap-2"
               >
                 {isWorking ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>
                       {progress.stage === 'downloading'
-                        ? progress.loadedBytes && progress.totalBytes
-                          ? `Downloading Model (${progress.percent}%) • ${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)}…`
-                          : `Downloading Model (${progress.percent}%)…`
-                        : progress.stage === 'preparing'
-                          ? 'Preparing Upscaler…'
-                          : `Upscaling (${scale}×)…`}
+                        ? `Downloading (${progress.percent}%)…`
+                        : `Upscaling (${scale}×)…`}
                     </span>
                   </>
                 ) : (
@@ -486,54 +504,34 @@ export default function ImageUpscaler() {
                 )}
               </button>
             ) : (
-              <div className="flex flex-col sm:flex-row w-full gap-3 items-center">
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <select
-                    value={downloadFormat}
-                    onChange={(e) => setDownloadFormat(e.target.value as SupportedFormat)}
-                    className="px-3 py-3 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-200"
-                  >
-                    <option value="image/png">PNG (Lossless)</option>
-                    <option value="image/jpeg">JPEG</option>
-                    <option value="image/webp">WebP</option>
-                  </select>
-
-                  {downloadFormat !== 'image/png' && (
-                    <select
-                      value={downloadQuality}
-                      onChange={(e) => setDownloadQuality(parseFloat(e.target.value))}
-                      className="px-3 py-3 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-200"
-                    >
-                      <option value={0.95}>Quality: 95%</option>
-                      <option value={0.92}>Quality: 92%</option>
-                      <option value={0.85}>Quality: 85%</option>
-                    </select>
-                  )}
-                </div>
-
+              <div className="space-y-2">
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="flex-1 w-full py-3 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-xs flex items-center justify-center gap-2"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  <span>Download Upscaled Image ({result.width}×{result.height})</span>
+                  <span>Download Upscaled ({result.width}×{result.height})</span>
                 </button>
-
                 <button
                   type="button"
                   onClick={reset}
-                  className="w-full sm:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition-colors"
+                  className="w-full py-2 px-4 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
                 >
                   Reset
                 </button>
               </div>
             )}
+
+            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+              <span>100% On-Device AI</span>
+              <span>{isCached ? '💾 Cached Offline Ready' : '⬇️ Downloads on first run'}</span>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

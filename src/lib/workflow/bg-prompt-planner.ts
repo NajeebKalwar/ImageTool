@@ -81,7 +81,7 @@ const GRAPHIC_PATTERN =
 export async function planBackgroundRemovalFromPrompt({
   systemPrompt,
   userPrompt,
-  fallbackModelId = 'modnet',
+  fallbackModelId = 'birefnet-lite',
   fallbackSubjectCategory = 'auto',
 }: BackgroundPromptPlanInput): Promise<BackgroundPromptPlanResult> {
   const messages = await formatBackgroundRemoverMessages(systemPrompt, userPrompt);

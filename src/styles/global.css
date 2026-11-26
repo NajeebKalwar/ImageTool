@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background-color: #f1f3ff;
+    color: #111827;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  body {
+    background: linear-gradient(180deg, #eff2ff 0%, #f5f7ff 45%, #f8f9fc 100%);
+    color: #111827;
+  }
+}

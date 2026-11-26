@@ -114,40 +114,47 @@ export default function WorkerLab() {
   }, [addLog]);
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: '40rem', margin: '2rem auto' }}>
-      <h2>Worker Lab</h2>
-      <p style={{ color: '#666' }}>
-        Verifies the Web Worker plumbing: message protocol, request tracking,
-        and transferable ArrayBuffer pixel round-trip.
-      </p>
+    <div className="max-w-2xl mx-auto my-8 p-6 bg-[#f8f9fc] border border-slate-200/90 rounded-xl shadow-2xs space-y-4">
+      <div>
+        <h2 className="text-xl font-bold text-slate-900">Worker Lab</h2>
+        <p className="text-xs text-slate-600 mt-1">
+          Verifies the Web Worker plumbing: message protocol, request tracking,
+          and transferable ArrayBuffer pixel round-trip.
+        </p>
+      </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-        <button onClick={runPing} disabled={busy}>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={runPing}
+          disabled={busy}
+          className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white transition-colors"
+        >
           Ping
         </button>
-        <button onClick={runInvert} disabled={busy}>
+        <button
+          type="button"
+          onClick={runInvert}
+          disabled={busy}
+          className="px-4 py-2 text-xs font-semibold rounded-lg bg-white border border-blue-200 hover:border-blue-500 text-slate-800 transition-colors"
+        >
           Invert 2×2
         </button>
-        <button onClick={terminate} disabled={busy}>
+        <button
+          type="button"
+          onClick={terminate}
+          disabled={busy}
+          className="px-4 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 hover:border-rose-300 text-rose-600 transition-colors"
+        >
           Terminate
         </button>
       </div>
 
-      <pre
-        style={{
-          background: '#111',
-          color: '#eee',
-          padding: '1rem',
-          borderRadius: '0.5rem',
-          minHeight: '6rem',
-          overflow: 'auto',
-          fontSize: '0.85rem',
-        }}
-      >
+      <pre className="bg-white border border-slate-200 text-slate-800 p-4 rounded-lg min-h-24 overflow-auto text-xs font-mono">
         {log.length === 0
           ? 'Click a button to run a test…'
           : log.map((entry) => (
-              <div key={entry.key} style={{ color: entry.ok ? '#6f6' : '#f66' }}>
+              <div key={entry.key} className={entry.ok ? 'text-emerald-700' : 'text-rose-600'}>
                 {entry.text}
               </div>
             ))}

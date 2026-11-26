@@ -29,6 +29,7 @@ export interface BackgroundRemovalResult {
   pixels: Uint8ClampedArray;
   mask: Uint8ClampedArray;
   durationMs: number;
+  modelId?: string;
 }
 
 /**
@@ -93,7 +94,7 @@ export function extractMaskChannel(
 }
 
 /**
- * Composites the extracted alpha mask into the source RGBA image buffer in-place.
+ * Composites the extracted alpha mask into a new RGBA image buffer.
  * Preserves RGB channels while updating the alpha channel, handling RawImage or 1-channel matte.
  */
 export function compositeAlphaMask(
@@ -104,15 +105,16 @@ export function compositeAlphaMask(
 ): Uint8ClampedArray {
   const pixelCount = width * height;
   const matte = mask instanceof RawImage ? extractMaskChannel(mask, width, height) : mask;
+  const result = new Uint8ClampedArray(sourceRgba);
 
   for (let i = 0; i < pixelCount; i++) {
     const pxOffset = i * 4;
-    const srcA = sourceRgba[pxOffset + 3];
+    const srcA = result[pxOffset + 3];
     const maskA = matte[i];
-    sourceRgba[pxOffset + 3] = Math.round((srcA * maskA) / 255);
+    result[pxOffset + 3] = Math.round((srcA * maskA) / 255);
   }
 
-  return sourceRgba;
+  return result;
 }
 
 /**
@@ -140,12 +142,14 @@ export async function removeBackground(
   // 1. Resolve model metadata
   let model = options.modelId ? getModelMetadata(options.modelId) : null;
   if (!model) {
-    model = findModelForTask('background-removal');
+    // BiRefNet-lite is the safer default for ambiguous/object scenes. MODNet
+    // remains available as the fast explicit portrait option.
+    model = getModelMetadata('birefnet-lite') ?? findModelForTask('background-removal');
   }
 
   if (!model) {
     throw new ModelLoadError(
-      options.modelId ?? 'modnet',
+      options.modelId ?? 'birefnet-lite',
       'No background removal model available in registry.',
     );
   }
@@ -176,6 +180,7 @@ export async function removeBackground(
 
   let activePipeline = loadedPipeline.instance;
   let activeBackend = loadedPipeline.backend;
+  let activeDtype = loadedPipeline.dtype;
 
   if (isCancelled?.()) {
     throw new CancelledError();
@@ -187,7 +192,10 @@ export async function removeBackground(
   });
 
   // 3. Construct RawImage input for segmentation pipeline
-  const inputRaw = new RawImage(pixels, width, height, 4);
+  // Keep the caller's buffer pristine. The same source pixels may be used by
+  // the UI for later mask refinement or by a retry after backend failure.
+  const sourcePixels = new Uint8ClampedArray(pixels);
+  const inputRaw = new RawImage(sourcePixels, width, height, 4);
 
   // 4. Run inference with automatic runtime fallback to WASM if WebGPU fails during execution
   let output: unknown;
@@ -207,6 +215,7 @@ export async function removeBackground(
       const fallbackEntry = await getPipeline(model.id, undefined, isCancelled, 'wasm');
       activePipeline = fallbackEntry.instance;
       activeBackend = 'wasm';
+      activeDtype = fallbackEntry.dtype;
       output = await activePipeline(inputRaw);
     } catch (wasmErr) {
       if (isCancelled?.()) throw new CancelledError();
@@ -215,6 +224,7 @@ export async function removeBackground(
       const fallbackEntry = await getPipeline('modnet', undefined, isCancelled);
       activePipeline = fallbackEntry.instance;
       activeBackend = fallbackEntry.backend;
+      activeDtype = fallbackEntry.dtype;
       output = await activePipeline(inputRaw);
       model = fallbackEntry.model;
     }
@@ -239,7 +249,7 @@ export async function removeBackground(
 
   // 6. Extract normalized 1-channel matte and composite in-place
   const rawMask = extractMaskChannel(mask, width, height);
-  const finalPixels = compositeAlphaMask(pixels, width, height, rawMask);
+  const finalPixels = compositeAlphaMask(sourcePixels, width, height, rawMask);
 
   // 7. Output quality verification: guard against all-transparent failure
   const pixelCount = width * height;
@@ -251,12 +261,13 @@ export async function removeBackground(
     throw new Error('Background removal failed: output was entirely transparent (no subject detected).');
   }
 
-  const durationMs = performance.now() - startTime;
+  const durationMs = Math.round(performance.now() - startTime);
 
   logAiExecution({
     task: 'background-removal',
     modelId: model.id,
     backend: activeBackend,
+    dtype: activeDtype,
     width,
     height,
     megapixels: (width * height) / 1_000_000,
@@ -276,5 +287,6 @@ export async function removeBackground(
     pixels: finalPixels,
     mask: rawMask,
     durationMs,
+    modelId: model.id,
   };
 }

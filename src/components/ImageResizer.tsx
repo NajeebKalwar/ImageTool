@@ -204,288 +204,282 @@ export default function ImageResizer() {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto my-6 p-4 sm:p-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-xl">
-      {/* Privacy Badge */}
-      <div className="flex items-center gap-2 mb-6 px-3 py-2 bg-emerald-950/60 border border-emerald-800/60 rounded-lg text-emerald-300 text-xs sm:text-sm font-medium">
-        <svg className="w-4 h-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-        <span>
-          <strong>100% Private & Local:</strong> Image bytes never leave your device. All decoding, resizing, and encoding run entirely in your browser via Web Workers.
-        </span>
-      </div>
-
+    <div className="w-full max-w-5xl mx-auto space-y-5">
       {error && (
-        <div className="mb-6 p-3 bg-rose-950/80 border border-rose-800 rounded-lg text-rose-200 text-sm">
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm shadow-2xs">
           {error}
         </div>
       )}
 
-      {/* File Upload Dropzone */}
-      {!source ? (
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label="Upload an image to resize and convert"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
-          }}
-          className="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-10 text-center transition-colors cursor-pointer bg-slate-950/40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              fileInputRef.current?.click();
-            }
-          }}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files?.[0]) handleFile(e.target.files[0]);
-            }}
-          />
-          <div className="mx-auto w-12 h-12 mb-3 text-slate-400">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <p className="text-base font-semibold text-slate-200">
-            Click to upload or drag and drop an image
-          </p>
-          <p className="text-xs text-slate-400 mt-1">
-            Supports PNG, JPEG, WebP, AVIF up to 50 MB
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Image Info & Preview Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-            {/* Source Preview Card */}
-            <div className="bg-slate-950/60 p-4 rounded-lg border border-slate-800">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Original Image</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSource(null);
-                    setResult(null);
-                  }}
-                  className="text-xs text-slate-400 hover:text-rose-400 transition-colors"
-                >
-                  Change Image
-                </button>
-              </div>
-              <div className="relative aspect-video max-h-48 flex items-center justify-center bg-slate-900 rounded overflow-hidden mb-3">
-                <img
-                  src={source.previewUrl}
-                  alt="Original preview"
-                  className="max-h-full max-w-full object-contain"
-                />
-              </div>
-              <div className="text-xs text-slate-400 space-y-1">
-                <div className="flex justify-between">
-                  <span>Dimensions:</span>
-                  <strong className="text-slate-200">{source.width} × {source.height} px</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>File size:</span>
-                  <strong className="text-slate-200">{formatSize(source.file.size)}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Format:</span>
-                  <strong className="text-slate-200">{source.file.type || 'image'}</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Resize Controls */}
-            <div className="space-y-4 bg-slate-950/60 p-4 rounded-lg border border-slate-800">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">
-                Resize Settings
-              </span>
-
-              {/* Dimension Inputs */}
-              <div className="grid grid-cols-2 gap-3 items-end">
-                <div>
-                  <label htmlFor="target-width" className="block text-xs font-medium text-slate-300 mb-1">
-                    Width (px)
-                  </label>
-                  <input
-                    id="target-width"
-                    type="number"
-                    min="1"
-                    max="10000"
-                    value={targetWidth || ''}
-                    onChange={(e) => onWidthChange(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="target-height" className="block text-xs font-medium text-slate-300 mb-1">
-                    Height (px)
-                  </label>
-                  <input
-                    id="target-height"
-                    type="number"
-                    min="1"
-                    max="10000"
-                    value={targetHeight || ''}
-                    onChange={(e) => onHeightChange(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              {/* Aspect Ratio Lock */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="lock-aspect"
-                  checked={lockAspect}
-                  onChange={(e) => setLockAspect(e.target.checked)}
-                  className="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0"
-                />
-                <label htmlFor="lock-aspect" className="text-xs text-slate-300 cursor-pointer">
-                  Lock aspect ratio ({source.aspectRatio.toFixed(2)}:1)
-                </label>
-              </div>
-
-              {/* Quick Presets */}
-              <div>
-                <span className="text-xs text-slate-400 block mb-1">Quick Scale Presets</span>
-                <div className="flex gap-1.5 flex-wrap">
-                  {[0.25, 0.5, 0.75, 1, 2].map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => applyPreset(s)}
-                      className="px-2 py-1 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
-                    >
-                      {s * 100}%
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Format & Quality */}
-              <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-800">
-                <div>
-                  <label htmlFor="target-fit" className="block text-xs font-medium text-slate-300 mb-1">
-                    Fit Mode
-                  </label>
-                  <select
-                    id="target-fit"
-                    value={fit}
-                    onChange={(e) => setFit(e.target.value as ResizeFit)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="contain">Contain</option>
-                    <option value="cover">Cover</option>
-                    <option value="fill">Fill (Stretch)</option>
-                    <option value="inside">Inside (No upscale)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="target-format" className="block text-xs font-medium text-slate-300 mb-1">
-                    Output Format
-                  </label>
-                  <select
-                    id="target-format"
-                    value={format}
-                    onChange={(e) => setFormat(e.target.value as SupportedFormat)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="image/webp">WebP</option>
-                    <option value="image/jpeg">JPEG</option>
-                    <option value="image/png">PNG</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="target-quality" className="block text-xs font-medium text-slate-300 mb-1">
-                    Quality ({quality}%)
-                  </label>
-                  <input
-                    id="target-quality"
-                    type="range"
-                    min="10"
-                    max="100"
-                    value={quality}
-                    disabled={format === 'image/png'}
-                    onChange={(e) => setQuality(Number(e.target.value))}
-                    className="w-full accent-indigo-500 cursor-pointer mt-1"
-                  />
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <button
-                type="button"
-                onClick={processImage}
-                disabled={isProcessing}
-                className="w-full mt-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900/50 text-white font-medium text-sm rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2"
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* LEFT COLUMN: Dropzone, Original Preview & Result */}
+        <div className="lg:col-span-7 space-y-4">
+          {!source ? (
+            <div className="bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-4 shadow-2xs">
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="Upload an image to resize and convert"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
+                }}
+                className="border-[1.5px] border-dashed border-slate-300 hover:border-blue-400 rounded-lg py-14 px-6 text-center transition-colors cursor-pointer bg-[#f8f9fc] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
               >
-                {isProcessing ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
-                    <span>Processing in Worker…</span>
-                  </>
-                ) : (
-                  <span>Resize & Convert</span>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Result Card */}
-          {result && (
-            <div className="bg-slate-950 p-5 rounded-lg border border-indigo-900/60 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-emerald-400 flex items-center gap-1.5">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Processing Complete ({result.elapsedMs} ms)
-                </span>
-                <span className="text-xs text-slate-400">
-                  {formatSize(source.file.size)} → <strong>{formatSize(result.size)}</strong> ({(((result.size - source.file.size) / source.file.size) * 100).toFixed(1)}%)
-                </span>
-              </div>
-
-              <div className="relative aspect-video max-h-64 flex items-center justify-center bg-slate-900/80 rounded border border-slate-800 overflow-hidden">
-                <img
-                  src={result.url}
-                  alt="Resized output preview"
-                  className="max-h-full max-w-full object-contain"
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) handleFile(e.target.files[0]);
+                  }}
                 />
+                <p className="text-sm font-medium text-slate-700 mb-2">Drag file here</p>
+                <p className="text-xs text-slate-400 mb-3">or</p>
+                <span className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 hover:border-blue-500 text-slate-800 text-xs font-semibold rounded-lg shadow-2xs transition-colors">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12" />
+                  </svg>
+                  Choose file
+                </span>
+                <p className="text-[11px] text-slate-500 mt-4">
+                  PNG, JPEG, WebP, AVIF up to 50 MB • Local Web Worker resizing
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Source File & Preview Card */}
+              <div className="bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-4 shadow-2xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-slate-700">Original Image</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSource(null);
+                      setResult(null);
+                    }}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    Change file
+                  </button>
+                </div>
+                <div className="relative aspect-video max-h-56 flex items-center justify-center bg-white border border-slate-200/80 rounded-lg overflow-hidden">
+                  <img
+                    src={source.previewUrl}
+                    alt="Original preview"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 bg-white border border-slate-200/80 rounded-lg p-2.5 text-center">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Dimensions</span>
+                    <strong className="text-slate-900 font-mono">{source.width} × {source.height}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Size</span>
+                    <strong className="text-slate-900 font-mono">{formatSize(source.file.size)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Format</span>
+                    <strong className="text-slate-900">{source.file.type.replace('image/', '').toUpperCase() || 'IMG'}</strong>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={downloadResult}
-                  className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download Resized Image ({result.width} × {result.height})
-                </button>
-              </div>
+              {/* Result Card */}
+              {result && (
+                <div className="bg-[#f8f9fc] p-5 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-emerald-700 flex items-center gap-1.5">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Complete ({result.elapsedMs} ms)
+                    </span>
+                    <span className="text-xs text-slate-500 font-mono">
+                      {formatSize(source.file.size)} → <strong className="text-slate-900">{formatSize(result.size)}</strong> (
+                      {(((result.size - source.file.size) / source.file.size) * 100).toFixed(1)}%)
+                    </span>
+                  </div>
+
+                  <div className="relative aspect-video max-h-60 flex items-center justify-center bg-white rounded-lg border border-slate-200/80 overflow-hidden">
+                    <img
+                      src={result.url}
+                      alt="Resized output preview"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={downloadResult}
+                    className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg transition-colors shadow-xs flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download Resized ({result.width} × {result.height})
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+
+        {/* RIGHT COLUMN: Resize Settings & Action */}
+        <div className="lg:col-span-5 bg-[#f8f9fc] border border-slate-200/90 rounded-xl p-5 shadow-2xs space-y-4">
+          <h2 className="text-base font-bold text-slate-900">Resize settings</h2>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="target-width" className="block text-xs font-medium text-slate-600 mb-1">
+                Width (px)
+              </label>
+              <input
+                id="target-width"
+                type="number"
+                min="1"
+                max="10000"
+                disabled={!source}
+                value={targetWidth || ''}
+                onChange={(e) => onWidthChange(Number(e.target.value))}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 disabled:bg-slate-100"
+              />
+            </div>
+            <div>
+              <label htmlFor="target-height" className="block text-xs font-medium text-slate-600 mb-1">
+                Height (px)
+              </label>
+              <input
+                id="target-height"
+                type="number"
+                min="1"
+                max="10000"
+                disabled={!source}
+                value={targetHeight || ''}
+                onChange={(e) => onHeightChange(Number(e.target.value))}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 disabled:bg-slate-100"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="lock-aspect"
+              checked={lockAspect}
+              onChange={(e) => setLockAspect(e.target.checked)}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="lock-aspect" className="text-xs text-slate-700 cursor-pointer">
+              Lock aspect ratio {source ? `(${source.aspectRatio.toFixed(2)}:1)` : ''}
+            </label>
+          </div>
+
+          <div>
+            <span className="text-xs font-medium text-slate-500 block mb-1.5">Quick Scale Presets</span>
+            <div className="flex gap-1.5 flex-wrap">
+              {[0.25, 0.5, 0.75, 1, 2].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={!source}
+                  onClick={() => applyPreset(s)}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-md bg-white border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 disabled:opacity-50 transition-colors"
+                >
+                  {s * 100}%
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-200/80">
+            <div>
+              <label htmlFor="target-fit" className="block text-xs font-medium text-slate-600 mb-1">
+                Fit Mode
+              </label>
+              <select
+                id="target-fit"
+                value={fit}
+                onChange={(e) => setFit(e.target.value as ResizeFit)}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              >
+                <option value="contain">Contain</option>
+                <option value="cover">Cover</option>
+                <option value="fill">Fill (Stretch)</option>
+                <option value="inside">Inside (No upscale)</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="target-format" className="block text-xs font-medium text-slate-600 mb-1">
+                Output Format
+              </label>
+              <select
+                id="target-format"
+                value={format}
+                onChange={(e) => setFormat(e.target.value as SupportedFormat)}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              >
+                <option value="image/webp">WebP</option>
+                <option value="image/jpeg">JPEG</option>
+                <option value="image/png">PNG</option>
+              </select>
+            </div>
+          </div>
+
+          {format !== 'image/png' && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-600 font-medium">Quality</span>
+                <span className="font-mono font-semibold text-blue-600">{quality}%</span>
+              </div>
+              <input
+                id="target-quality"
+                type="range"
+                min="10"
+                max="100"
+                value={quality}
+                onChange={(e) => setQuality(Number(e.target.value))}
+                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={processImage}
+            disabled={!source || isProcessing}
+            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-lg transition-colors shadow-xs flex items-center justify-center gap-2"
+          >
+            {isProcessing ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                <span>Processing…</span>
+              </>
+            ) : (
+              <span>Resize &amp; Convert</span>
+            )}
+          </button>
+
+          <p className="text-[11px] text-slate-500 text-center">
+            100% Private • Web Worker Processing
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

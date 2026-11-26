@@ -81,7 +81,7 @@ export const useBackgroundRemoverStore = create<BackgroundRemoverState>((set) =>
   status: 'idle',
   source: null,
   result: null,
-  selectedModelId: 'modnet',
+  selectedModelId: 'birefnet-lite',
   subjectCategory: 'auto',
   systemPrompt: DEFAULT_BG_REMOVER_SYSTEM_PROMPT,
   userPrompt: '',

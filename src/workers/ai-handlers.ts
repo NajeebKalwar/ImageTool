@@ -179,7 +179,7 @@ export async function handleAiRemoveBackground(
     response: {
       type: 'ai_result',
       id,
-      modelId: params.modelId,
+      modelId: result.modelId ?? params.modelId,
       width: result.width,
       height: result.height,
       pixels: outBuffer,
